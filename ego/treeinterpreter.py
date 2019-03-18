@@ -1,5 +1,13 @@
 #!/usr/bin/env python
-"""Provides scikit interface."""
+"""Tree interpreter.
+
+Source from: https://github.com/andosa/treeinterpreter
+
+Package for interpreting scikit-learn's decision tree and random forest
+predictions. Allows decomposing each prediction into bias and feature
+contribution components as described in
+http://blog.datadive.net/interpreting-random-forests/.
+"""
 
 import numpy as np
 import sklearn
