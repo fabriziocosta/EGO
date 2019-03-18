@@ -34,7 +34,7 @@ class Classifier(object):
             graphs,
             encoding_func=self.encoding_func,
             feature_size=self.feature_size)
-        preds = self.estimator.lf.predict_proba(x)[:, 1]
+        preds = self.estimator.predict_proba(x)[:, 1]
         return preds
 
     def predict(self, graphs):
