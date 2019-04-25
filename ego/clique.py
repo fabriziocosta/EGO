@@ -10,18 +10,21 @@ from ego.component import get_subgraphs_from_graph_component
 
 
 @curry
-def clique_and_non_clique(graph, min_size=1, max_size=None):
+def clique_and_non_clique(graph, size=1, merge=False):
     cliques = nx.enumerate_all_cliques(graph)
-    if max_size is None:
-        max_size = nx.number_of_nodes(graph)
-    cliques = filter(lambda x: max_size >= len(x) >= min_size, cliques)
+    if merge is None:
+        merge = nx.number_of_nodes(graph)
+    cliques = filter(lambda x: len(x) == size, cliques)
     # induce graph from cliques and return as components
     # the connected components
     nbunch = set()
     for clique in cliques:
         nbunch.update(clique)
-    g1 = nx.subgraph(graph, nbunch)
-    clique_components = nx.connected_components(g1)
+    if merge:
+        g1 = nx.subgraph(graph, nbunch)
+        clique_components = nx.connected_components(g1)
+    else:
+        clique_components = cliques
     complement_nbunch = set()
     for u in graph.nodes():
         if u not in nbunch:
@@ -32,25 +35,25 @@ def clique_and_non_clique(graph, min_size=1, max_size=None):
 
 
 @curry
-def clique_decomposition(graph, min_size=1, max_size=None):
+def clique_decomposition(graph, size=1, merge=False):
     res = clique_and_non_clique(
-        graph, min_size=min_size, max_size=max_size)
+        graph, size=size, merge=merge)
     deg_components, non_deg_components = res
     return deg_components
 
 
 @curry
-def non_clique_decomposition(graph, min_size=1, max_size=None):
+def non_clique_decomposition(graph, size=1, merge=False):
     res = clique_and_non_clique(
-        graph, min_size=min_size, max_size=max_size)
+        graph, size=size, merge=merge)
     deg_components, non_deg_components = res
     return non_deg_components
 
 
 @curry
-def clique_non_clique_decomposition(graph, min_size=1, max_size=None):
+def clique_non_clique_decomposition(graph, size=1, merge=False):
     res = clique_and_non_clique(
-        graph, min_size=min_size, max_size=max_size)
+        graph, size=size, merge=merge)
     deg_components, non_deg_components = res
     return deg_components + non_deg_components
 
@@ -71,18 +74,18 @@ def decompose(graph_component, func):
 
 
 @curry
-def decompose_clique(graph_component, min_size=2, max_size=None):
-    func = clique_decomposition(min_size=min_size, max_size=max_size)
+def decompose_clique(graph_component, size=2, merge=False):
+    func = clique_decomposition(size=size, merge=merge)
     return decompose(graph_component, func)
 
 
 @curry
-def decompose_non_clique(graph_component, min_size=2, max_size=None):
-    func = non_clique_decomposition(min_size=min_size, max_size=max_size)
+def decompose_non_clique(graph_component, size=2, merge=False):
+    func = non_clique_decomposition(size=size, merge=merge)
     return decompose(graph_component, func)
 
 
 @curry
-def decompose_clique_and_non_clique(graph_component, min_size=2, max_size=None):
-    func = clique_non_clique_decomposition(min_size=min_size, max_size=max_size)
+def decompose_clique_and_non_clique(graph_component, size=2, merge=False):
+    func = clique_non_clique_decomposition(size=size, merge=merge)
     return decompose(graph_component, func)

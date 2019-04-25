@@ -10,7 +10,7 @@ from ego.vectorize import vectorize_graphs
 
 class Classifier(object):
 
-    def __init__(self, decompose_func=None, preprocessor=None, nbits=14, seed=1):
+    def __init__(self, decompose_func=None, preprocessor=None, nbits=14, n_estimators=300, seed=1):
         feature_size, bitmask = set_feature_size(nbits=nbits)
         self.feature_size = feature_size
         self.bitmask = bitmask
@@ -19,7 +19,7 @@ class Classifier(object):
             preprocessors=preprocessor,
             bitmask=self.bitmask,
             seed=seed)
-        self.estimator = RandomForestClassifier(n_estimators=100)
+        self.estimator = RandomForestClassifier(n_estimators=n_estimators, random_state=seed)
 
     def fit(self, graphs, targets):
         x = vectorize_graphs(
@@ -48,7 +48,7 @@ class Classifier(object):
 
 class Regressor(object):
 
-    def __init__(self, decompose_func=None, preprocessor=None, nbits=14, seed=1):
+    def __init__(self, decompose_func=None, preprocessor=None, nbits=14, n_estimators=300, seed=1):
         feature_size, bitmask = set_feature_size(nbits=nbits)
         self.feature_size = feature_size
         self.bitmask = bitmask
@@ -57,7 +57,7 @@ class Regressor(object):
             preprocessors=preprocessor,
             bitmask=self.bitmask,
             seed=seed)
-        self.estimator = RandomForestRegressor(n_estimators=100)
+        self.estimator = RandomForestRegressor(n_estimators=n_estimators, random_state=seed)
 
     def fit(self, graphs, targets):
         x = vectorize_graphs(

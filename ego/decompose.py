@@ -3,6 +3,7 @@
 
 
 import toolz as tz
+from toolz import curry
 from ego.component import GraphComponent
 
 
@@ -30,3 +31,9 @@ def concatenate(*decomposition_functions):
 
 def accumulate(func, graphs):
     return tz.reduce(lambda x, y: x + y, map(func, graphs))
+
+
+@curry
+def iterate(decompose_func, n_iter=2):
+    funcs = [decompose_func] * n_iter
+    return tz.compose(*funcs)

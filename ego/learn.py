@@ -107,3 +107,17 @@ def make_node_scoring_func(graphs, targets, decomposition_funcs=None, preprocess
         return pie.node_importance(graph)
 
     return node_scoring_func
+
+
+def make_node_scoring_func_and_part_importance_estimator(graphs, targets, decomposition_funcs=None, preprocessors=None, nbits=14, seed=1):
+    pie = PartImportanceEstimator(
+        decompose_func=decomposition_funcs,
+        preprocessor=preprocessors,
+        nbits=nbits,
+        seed=seed)
+    pie.fit(graphs, targets)
+
+    def node_scoring_func(graph):
+        return pie.node_importance(graph)
+
+    return node_scoring_func, pie
