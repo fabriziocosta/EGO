@@ -31,7 +31,9 @@ def clique_and_non_clique(graph, size=1, merge=False):
             complement_nbunch.add(u)
     g2 = nx.subgraph(graph, complement_nbunch)
     non_clique_components = nx.connected_components(g2)
-    return list(clique_components), list(non_clique_components)
+    clique_components = [set(c) for c in clique_components]
+    non_clique_components = [set(c) for c in non_clique_components]
+    return clique_components, non_clique_components
 
 
 @curry

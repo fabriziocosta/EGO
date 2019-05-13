@@ -88,6 +88,23 @@ def get_subgraphs_from_node_components(graph, node_components):
     return graphs
 
 
+def transitive_reference_update(g1, g2):
+    # g1 and g2 have node attribute: contains
+    # we want to update the reference to node ids in g2, using g1
+    # if g2 has node 0 that contains nodes 2 and 5
+    # and g1 has node 2 containing [1,3,5] and node 5 containing [3,8,9]
+    # the node 0 in g2 should contain [1,3,5,8,9] i.e. the set union
+    g3 = nx.Graph(g2)
+    for u2 in g2.nodes():
+        contained = g2.nodes[u2]['label']
+        new_contained = set()
+        for u1 in contained:
+            original_contained = g1.nodes[u1]['label']
+            new_contained.update(original_contained)
+        g3.nodes[u2]['label'] = list(new_contained)
+    return g3
+
+
 def get_subgraphs_from_abstraction_graph(graph, abstract_graph):
     node_components = get_node_components_from_abstraction_graph(abstract_graph)
     return get_subgraphs_from_node_components(graph, node_components)

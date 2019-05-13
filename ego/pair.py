@@ -6,6 +6,7 @@ from collections import deque
 from ego.component import GraphComponent
 from ego.component import get_subgraphs_from_graph_component
 from toolz import curry
+import networkx as nx
 
 
 def radius_rooted_breadth_first(graph, root, radius=1):
@@ -95,8 +96,12 @@ def pair_decomposition(graph, subgraphs, distance=1):
 @curry
 def decompose_pair(graph_component, distance=1):
     subgraphs = get_subgraphs_from_graph_component(graph_component)
-    if not subgraphs:
-        subgraphs = [graph_component.graph]
+    if len(subgraphs) == 0:
+        subgraphs = []
+        G = graph_component.graph
+        for u in G.nodes():
+            g = nx.subgraph(G, [u])
+            subgraphs.append(g)
     node_components = pair_decomposition(
         graph_component.graph, subgraphs, distance=distance)
     gc = GraphComponent(

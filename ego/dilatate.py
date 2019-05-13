@@ -57,10 +57,13 @@ def get_component_neighborhood_component(g, component, radius=1):
 @curry
 def decompose_dilatate(graph_component, radius=1):
     g = graph_component.graph
-    nc = graph_component.node_components
-    nnc = nc + edge_to_node_components(graph_component.edge_components)
+    nc = graph_component.node_components + edge_to_node_components(
+        graph_component.edge_components)
+    # if there are no components consider all edges
+    if len(nc) == 0:
+        nc = [set([u, v]) for u, v in g.edges()]
     node_components = []
-    for component in nnc:
+    for component in nc:
         new_component = get_component_neighborhood_component(
             g, component, radius)
         node_components.append(new_component)

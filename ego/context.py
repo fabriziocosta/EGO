@@ -80,9 +80,12 @@ def context_component_decomposition(g, components=None, radius=1):
 @curry
 def decompose_context(graph_component, radius=1):
     g = graph_component.graph
-    nc = graph_component.node_components
-    nnc = nc + edge_to_node_components(graph_component.edge_components)
-    ec = context_component_decomposition(g, nnc, radius)
+    nc = graph_component.node_components + edge_to_node_components(
+        graph_component.edge_components)
+    # if there are no components consider all edges
+    if len(nc) == 0:
+        nc = [set([u, v]) for u, v in g.edges()]
+    ec = context_component_decomposition(g, nc, radius)
     gc = GraphComponent(
         graph=g,
         node_components=nc,

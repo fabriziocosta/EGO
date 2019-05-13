@@ -41,6 +41,10 @@ class PartImportanceEstimator(object):
         importance_dict = dict(enumerate(importances))
         return importance_dict, intercept
 
+    def get_importance_dict(self, graphs):
+        importance_dict, intercept = self.feature_importance(graphs)
+        return importance_dict
+
     def fit(self, graphs, targets):
         x = vectorize_graphs(
             graphs,
