@@ -65,7 +65,13 @@ def vectorize(graphs, decomposition_funcs=None, preprocessors=None, nbits=10, se
     return mtx
 
 
-def get_feature_dict(graphs, encoding_func=None, return_counts=False):
+def get_feature_dict(graphs, decomposition_funcs=None, preprocessors=None, nbits=10, seed=1, return_counts=False):
+    feature_size, bitmask = set_feature_size(nbits=nbits)
+    encoding_func = make_encoder(
+        decomposition_funcs,
+        preprocessors=preprocessors,
+        bitmask=bitmask,
+        seed=seed)
     feature_dict = dict()
     feature_counts_dict = defaultdict(int)
     for graph in graphs:

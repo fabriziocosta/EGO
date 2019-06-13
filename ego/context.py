@@ -47,6 +47,13 @@ def get_neighborhood_component(graph, root, radius=1):
     return nbunch
 
 
+def get_neighborhood(graph, component, radius=1):
+    nbunch = set()
+    for u in component:
+        nbunch.update(get_neighborhood_component(graph, u, radius=radius))
+    return nbunch
+
+
 def get_edges_bunch(graph, nbunch):
     g2 = nx.subgraph(graph, nbunch)
     ebunch = set()
@@ -58,7 +65,23 @@ def get_edges_bunch(graph, nbunch):
     return ebunch
 
 
-def context_component_decomposition(g, components=None, radius=1):
+def get_neighborhood_edges(graph, component, radius=1):
+    nbunch = get_neighborhood(graph, component, radius)
+    ebunch = get_edges_bunch(graph, nbunch)
+    return ebunch
+
+
+def context_component_decomposition(graph, components=None, radius=1):
+    context_edge_components = []
+    for component in components:
+        component_edges = get_edges_bunch(graph, component)
+        neighbor_edges = get_neighborhood_edges(graph, component, radius)
+        context_edges = neighbor_edges - component_edges
+        context_edge_components.append(context_edges)
+    return context_edge_components
+
+
+def old_context_component_decomposition(g, components=None, radius=1):
     neigh_edge_components = []
     for i, ci in enumerate(components):
         ebunch_i = get_edges_bunch(g, ci)
@@ -79,6 +102,22 @@ def context_component_decomposition(g, components=None, radius=1):
 
 @curry
 def decompose_context(graph_component, radius=1):
+    g = graph_component.graph
+    nc = graph_component.node_components + edge_to_node_components(
+        graph_component.edge_components)
+    # if there are no components consider all edges
+    if len(nc) == 0:
+        nc = [set([u, v]) for u, v in g.edges()]
+    ec = context_component_decomposition(g, nc, radius)
+    gc = GraphComponent(
+        graph=g,
+        node_components=[],
+        edge_components=ec)
+    return gc
+
+
+@curry
+def decompose_context_and_non_context(graph_component, radius=1):
     g = graph_component.graph
     nc = graph_component.node_components + edge_to_node_components(
         graph_component.edge_components)

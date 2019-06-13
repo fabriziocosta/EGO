@@ -176,6 +176,7 @@ def _make_encoder(decompose_func, preprocessor=None, bitmask=None, seed=1):
 
 
 def make_encoder(decompose_funcs, preprocessors=None, bitmask=None, seed=1):
+    encoding_func = None
     if isinstance(decompose_funcs, list):
         def multi_encoder(graph, bitmask=bitmask, seed=seed):
             codes = []
@@ -196,10 +197,11 @@ def make_encoder(decompose_funcs, preprocessors=None, bitmask=None, seed=1):
                 codes += _codes
                 fragments += _fragments
             return codes, fragments
-        return multi_encoder
+        encoding_func = multi_encoder
     else:
-        return _make_encoder(
+        encoding_func = _make_encoder(
             decompose_funcs,
             preprocessor=preprocessors,
             bitmask=bitmask,
             seed=seed)
+    return encoding_func
