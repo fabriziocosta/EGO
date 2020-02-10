@@ -3,11 +3,13 @@
 
 import numpy as np
 import networkx as nx
+
 from collections import defaultdict
 from sklearn.ensemble import RandomForestRegressor
-import ego.utils.treeinterpreter as ti
+import ego.treeinterpreter as ti
+from ego.vectorize import set_feature_size
 from ego.encode import make_encoder
-from ego.vectorize import set_feature_size, vectorize_graphs
+from ego.vectorize import vectorize_graphs
 
 
 class PartImportanceEstimator(object):

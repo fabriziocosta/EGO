@@ -16,21 +16,8 @@ second node id (to guarantee identity matches).
 import networkx as nx
 import collections
 
-
-def serialize(iterable, signature1=None, signature2=None, signature3=None):
-    seq = [str(element) for element in iterable]
-    seq = '+'.join(seq)
-    if signature1:
-        seq += '(' + signature1 + ')'
-    if signature2:
-        seq += '(' + signature2 + ')'
-    if signature3:
-        seq += '(' + signature3 + ')'
-    return seq
-
 GraphComponent = collections.namedtuple(
-    'GraphComponent', 'graph subgraphs signatures')
-# add signature
+    'GraphComponent', 'graph node_components edge_components')
 
 
 def make_abstraction_graph(node_components):
@@ -97,7 +84,7 @@ def get_subgraphs_from_node_components(graph, node_components):
     graphs = []
     if node_components:
         for node_component in node_components:
-            graphs.append(graph.subgraph(node_component))
+            graphs.append(nx.subgraph(graph, node_component))
     return graphs
 
 
@@ -119,8 +106,7 @@ def transitive_reference_update(g1, g2):
 
 
 def get_subgraphs_from_abstraction_graph(graph, abstract_graph):
-    node_components = get_node_components_from_abstraction_graph(
-        abstract_graph)
+    node_components = get_node_components_from_abstraction_graph(abstract_graph)
     return get_subgraphs_from_node_components(graph, node_components)
 
 
@@ -150,7 +136,7 @@ def edge_subgraph(graph, edge_component):
     return subgraph
 
 
-def get_subgraphs_from_edge_components_old(graph, edge_components):
+def get_subgraphs_from_edge_components(graph, edge_components):
     subgraphs = []
     if edge_components:
         for edge_component in edge_components:
@@ -158,25 +144,14 @@ def get_subgraphs_from_edge_components_old(graph, edge_components):
     return subgraphs
 
 
-def get_subgraphs_from_edge_components(graph, edge_components):
-    subgraphs = []
-    if edge_components:
-        for edge_component in edge_components:
-            subgraphs.append(graph.edge_subgraph(edge_component))
-    return subgraphs
-
-
-def set_signature(subgraphs, signatures):
-    new_subgraphs = []
-    for g, s in zip(subgraphs, signatures):
-        gg = g.copy()
-        gg.graph['signature'] = s
-        new_subgraphs.append(gg)
-    return new_subgraphs
-
-
 def get_subgraphs_from_graph_component(graph_component):
-    return set_signature(graph_component.subgraphs, graph_component.signatures)
+    g = graph_component.graph
+    nc = graph_component.node_components
+    ec = graph_component.edge_components
+    node_subgraphs = get_subgraphs_from_node_components(g, nc)
+    edge_subgraphs = get_subgraphs_from_edge_components(g, ec)
+    subgraphs = node_subgraphs + edge_subgraphs
+    return subgraphs
 
 
 def convert(graph):
@@ -190,11 +165,11 @@ def convert(graph):
     Returns
     -------
     GraphComponent : namedtuple
-        GraphComponent(graph=graph, subgraphs=[graph], signatures=['raw'])
+        GraphComponent(graph=graph, node_components=[], edge_components=[]).
 
     """
     # use instead a components_list made of pairs of node_components
     # and edge_components.
     # One can then use a reduce to join multiple components into one.
-    gc = GraphComponent(graph=graph, subgraphs=[graph], signatures=['.'])
+    gc = GraphComponent(graph=graph, node_components=[], edge_components=[])
     return gc

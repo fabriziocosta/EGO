@@ -9,8 +9,6 @@ from ego.component import get_node_components_from_abstraction_graph
 from ego.component import make_abstraction_graph
 from ego.component import convert, edge_to_node_components
 from ego.component import transitive_reference_update
-from ego.decomposition.identity import decompose_identity
-from ego.decomposition.concatenate import decompose_concatenate
 
 
 def compose(*decomposition_functions):
@@ -51,46 +49,25 @@ def head_compose(*decomposition_functions):
     argument_decomposition_functions = [f for f in decomposition_functions[1:]]
 
     def head_composition(in_graph_component):
-        graph_components = [f(in_graph_component)
-                            for f in argument_decomposition_functions]
+        graph_components = [f(in_graph_component) for f in argument_decomposition_functions]
         return main_decomposition_function(*graph_components)
     return head_composition
 
 
-def args(*decomposition_functions):
-    return head_compose(*decomposition_functions)
-
-
 def concatenate(*decomposition_functions):
     def combined_decomposition_function(in_graph_component):
-        subgraphs = []
-        signatures = []
+        all_nc = []
+        all_ec = []
         for decomposition_function in decomposition_functions:
             graph_component = decomposition_function(in_graph_component)
-            subgraphs += graph_component.subgraphs
-            signatures += graph_component.signatures
+            g = graph_component.graph
+            nc = graph_component.node_components
+            ec = graph_component.edge_components
+            all_nc += nc
+            all_ec += ec
+        g = in_graph_component.graph
         gc = GraphComponent(
-            graph=in_graph_component.graph,
-            subgraphs=subgraphs,
-            signatures=signatures)
-        return gc
-    return combined_decomposition_function
-
-
-def concatenate_disjunctive(*decomposition_functions):
-    def combined_decomposition_function(in_graph_component):
-        subgraphs = []
-        signatures = []
-        for decomposition_function in decomposition_functions:
-            graph_component = decomposition_function(in_graph_component)
-            subgraphs += graph_component.subgraphs
-            signatures += graph_component.signatures
-        new_signature = 'disjunction' + '*'.join(sorted(set(signatures)))
-        new_signatures = [new_signature] * len(subgraphs)
-        gc = GraphComponent(
-            graph=in_graph_component.graph,
-            subgraphs=subgraphs,
-            signatures=new_signatures)
+            graph=g, node_components=all_nc, edge_components=all_ec)
         return gc
     return combined_decomposition_function
 
@@ -103,28 +80,3 @@ def accumulate(func, graphs):
 def iterate(decompose_func, n_iter=2):
     funcs = [decompose_func] * n_iter
     return tz.compose(*funcs)
-
-
-def do_decompose(*decomposition_functions, **kargs):
-    """
-    Provide the template for the composition of aggregated
-    decomposition functions.
-
-    Arguments:
-        *decomposition_functions: the list of decomposition_functions
-        to be aggregated.
-
-        aggregate_function: the higher order decomposition.
-        Default is concatenate.
-
-        compose_function: the decomposition applied to the result of
-        the aggregtion. Default is identity.
-
-    Returns:
-        a decomposition function.
-
-    """
-    return compose(
-        kargs.get('compose_function', decompose_identity),
-        args(kargs.get('aggregate_function', decompose_concatenate),
-             *decomposition_functions))

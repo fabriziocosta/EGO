@@ -105,29 +105,25 @@ def rooted_breadth_first_hash(graph, root, seed=1):
 
 
 def get_graph_hash(graph, seed=1):
-    key = hash(graph.graph.get('signature', 1)) + seed
-    hashes = [rooted_breadth_first_hash(graph, u, key) for u in graph.nodes()]
+    hashes = [rooted_breadth_first_hash(graph, u, seed) for u in graph.nodes()]
     code = fast_hash(sorted(hashes))
     return code
 
 
 def get_nodes_hash(graph, seed=1):
-    key = hash(graph.graph.get('signature', 1)) + seed
     hashes = {u: rooted_breadth_first_hash(
-        graph, u, key) for u in graph.nodes()}
+        graph, u, seed) for u in graph.nodes()}
     return hashes
 
 
 def edges_codes(graph, bitmask=_bitmask_, seed=1):
-    key = hash(graph.graph.get('signature', 1)) + seed
-    edges_h = [get_edge_hash(graph, u, v, key) &
+    edges_h = [get_edge_hash(graph, u, v, seed) &
                bitmask for u, v in graph.edges()]
     return edges_h
 
 
 def vertex_codes(graph, bitmask=_bitmask_, seed=1):
-    key = hash(graph.graph.get('signature', 1)) + seed
-    nodes_h = [get_node_hash(graph, u, key) & bitmask for u in graph.nodes()]
+    nodes_h = [get_node_hash(graph, u, seed) & bitmask for u in graph.nodes()]
     return nodes_h
 
 

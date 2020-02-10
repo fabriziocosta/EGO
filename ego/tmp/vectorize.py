@@ -53,7 +53,7 @@ def vectorize_graphs(graphs, encoding_func=None, feature_size=None):
     return mtx
 
 
-def vectorize(graphs, decomposition_funcs=None, preprocessors=None, nbits=14, seed=1):
+def vectorize(graphs, decomposition_funcs=None, preprocessors=None, nbits=10, seed=1):
     feature_size, bitmask = set_feature_size(nbits=nbits)
     encoding_func = make_encoder(
         decomposition_funcs,
@@ -63,18 +63,6 @@ def vectorize(graphs, decomposition_funcs=None, preprocessors=None, nbits=14, se
     mtx = vectorize_graphs(
         graphs, encoding_func=encoding_func, feature_size=feature_size)
     return mtx
-
-
-def hash_graph(graph, decomposition_funcs=None, preprocessors=None, nbits=14, seed=1):
-    feature_size, bitmask = set_feature_size(nbits=nbits)
-    encoding_func = make_encoder(
-        decomposition_funcs,
-        preprocessors=preprocessors,
-        bitmask=bitmask,
-        seed=seed)
-    codes, fragments = encoding_func(graph)
-    dat = tuple(sorted(codes))
-    return int(hash(dat) & bitmask) + 1
 
 
 def get_feature_dict(graphs, decomposition_funcs=None, preprocessors=None, nbits=10, seed=1, return_counts=False):
@@ -95,17 +83,3 @@ def get_feature_dict(graphs, decomposition_funcs=None, preprocessors=None, nbits
         return feature_dict, feature_counts_dict
     else:
         return feature_dict
-
-
-def get_feature_set(graphs, decomposition_funcs=None, preprocessors=None, nbits=10, seed=1):
-    feature_size, bitmask = set_feature_size(nbits=nbits)
-    encoding_func = make_encoder(
-        decomposition_funcs,
-        preprocessors=preprocessors,
-        bitmask=bitmask,
-        seed=seed)
-    feature_set = set()
-    for graph in graphs:
-        codes, fragments = encoding_func(graph)
-        feature_set.add(codes)
-    return feature_set
