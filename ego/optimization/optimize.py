@@ -2,8 +2,19 @@
 """Provides scikit interface."""
 
 import numpy as np
+from ego.optimization.neighborhood_graph_grammar import NeighborhoodAdaptiveGraphGrammar
 from ego.optimization.neighborhood_graph_grammar import NeighborhoodPartImportanceGraphGrammar
-from ego.optimization.expected_improvement_estimator import GraphExpectedImprovementEstimator
+from ego.optimization.neighborhood_edge_swap import NeighborhoodEdgeSwap
+from ego.optimization.neighborhood_node_label_swap import NeighborhoodNodeLabelSwap
+from ego.optimization.neighborhood_node_label_mutation import NeighborhoodNodeLabelMutation
+from ego.optimization.neighborhood_edge_label_mutation import NeighborhoodEdgeLabelMutation
+from ego.optimization.neighborhood_edge_label_swap import NeighborhoodEdgeLabelSwap
+from ego.optimization.neighborhood_node_remove import NeighborhoodNodeRemove
+from ego.optimization.neighborhood_edge_remove import NeighborhoodEdgeRemove
+from ego.optimization.score_estimator import GraphUpperConfidenceBoundEstimator
+from ego.optimization.score_estimator import GraphRandomForestScoreEstimator
+from ego.optimization.score_estimator import GraphLinearScoreEstimator
+from ego.optimization.score_estimator import GraphExpectedImprovementEstimator
 from ego.decomposition.paired_neighborhoods import decompose_neighborhood
 from ego.vectorize import hash_graph
 import logging
@@ -11,63 +22,89 @@ import logging
 logger = logging.getLogger()
 
 
-def remove_duplicates_in_set(graphs_to_filter, graph_archive):
+def remove_duplicates(graphs):
+    """remove_duplicates."""
     df = decompose_neighborhood(radius=2)
-    val_set = set([hash_graph(g, decomposition_funcs=df) for g in graph_archive])
-    selected_graphs = [g for g in graphs_to_filter if hash_graph(g, decomposition_funcs=df) not in val_set]
+    selected_graphs_dict = {hash_graph(
+        g, decomposition_funcs=df): g for g in graphs}
+    return list(selected_graphs_dict.values())
+
+
+def remove_duplicates_in_set(graphs_to_filter, graph_archive):
+    """remove_duplicates_in_set."""
+    df = decompose_neighborhood(radius=2)
+    val_set = set([hash_graph(g, decomposition_funcs=df)
+                   for g in graph_archive])
+    selected_graphs = [g for g in graphs_to_filter if hash_graph(
+        g, decomposition_funcs=df) not in val_set]
     return selected_graphs
 
 
 def biased_sample(graphs, scores, sample_size):
+    """biased_sample."""
     p = np.array(scores)
-    # replace negative or zero probabilities with smallest positive prob
+    p = np.nan_to_num(p)
     p[p < 0] = 0
-    min_p = np.min(p[p > 0])
-    p[p == 0] = min_p
-    p = p / p.sum()
-    sample_ids = np.random.choice(len(graphs), size=sample_size - 1, replace=False, p=p)
+    # if there are non zero probabilities
+    # replace negative or zero probabilities with smallest positive prob
+    if len(p[p > 0]) > 1:
+        min_p = np.min(p[p > 0])
+        p[p == 0] = min_p
+        p = p / p.sum()
+        sample_ids = np.random.choice(
+            len(graphs), size=sample_size, replace=False, p=p)
+    # otherwise sample uniformly at random
+    else:
+        sample_ids = np.random.choice(
+            len(graphs), size=sample_size, replace=False)
     sample_graphs = [graphs[sample_id] for sample_id in sample_ids]
-    return sample_graphs
+    sample_scores = [scores[sample_id] for sample_id in sample_ids]
+    return sample_graphs, sample_scores
 
 
 def sample(graphs, scores, sample_size, greedy_frac=0.5):
+    """sample."""
     if sample_size > len(scores):
         sample_size = len(scores)
 
     # select with greedy strategy
+    greedy_selected_graphs = []
+    greedy_selected_scores = []
     n_greedy_selection = int(sample_size * greedy_frac)
     sorted_ids = np.argsort(-np.array(scores))
     greedy_selected_ids = sorted_ids[:n_greedy_selection]
-    greedy_selected_graphs = [graphs[greedy_selected_id] for greedy_selected_id in greedy_selected_ids]
-
+    if len(greedy_selected_ids) > 0:
+        greedy_selected_graphs = [graphs[greedy_selected_id]
+                                  for greedy_selected_id in greedy_selected_ids]
+        greedy_selected_scores = [scores[greedy_selected_id]
+                                  for greedy_selected_id in greedy_selected_ids]
     # select with policy: biased sample
+    policy_selected_graphs = []
+    policy_selected_scores = []
     unselected_ids = sorted_ids[n_greedy_selection:]
-    unselected_graphs = [graphs[unselected_id] for unselected_id in unselected_ids]
-    unselected_scores = [scores[unselected_id] for unselected_id in unselected_ids]
-    policy_selected_graphs = biased_sample(unselected_graphs, unselected_scores, sample_size - len(greedy_selected_graphs))
+    if len(unselected_ids) > 0:
+        unselected_graphs = [graphs[unselected_id]
+                             for unselected_id in unselected_ids]
+        unselected_scores = [scores[unselected_id]
+                             for unselected_id in unselected_ids]
+        policy_selected_graphs, policy_selected_scores = biased_sample(
+            unselected_graphs, unselected_scores, sample_size - len(greedy_selected_graphs))
 
     selected_graphs = greedy_selected_graphs + policy_selected_graphs
-    return selected_graphs
+    selected_scores = greedy_selected_scores + policy_selected_scores
+    return selected_graphs, selected_scores
 
 
-def sample_with_expected_improvement(graphs, sample_size, graph_expected_improvement_estimator):
-    if graph_expected_improvement_estimator.exploitation_vs_exploration == 1:
-        scores = graph_expected_improvement_estimator.predict_mean(graphs)
-    else:
-        scores = graph_expected_improvement_estimator.predict_expected_improvement(
-            graphs)
-    return sample(graphs, scores, sample_size, greedy_frac=0.5)
-
-
-def perturb(graphs, neighborhood_estimator, k_steps=2):
+def perturb(graphs, neighborhood_estimator, neighborhood_size=1):
+    """perturb."""
     # generate a fixed num of neighbors for each graph in input
     neighbor_graphs = []
     for g in graphs:
         neighbor_graphs.extend(neighborhood_estimator.neighbors(g))
-    # iterate the neighbour extraction k_steps times
-    # this allows to consider moves that do not lead immediately to an improved solution
-    # but that could lead to it in multiple steps
-    for k in range(k_steps - 1):
+    # iterate the neighbour extraction neighborhood_size times
+    # this allows to consider moves that do not lead immediately to an improved
+    # solution but that could lead to it in multiple steps
+    for k in range(neighborhood_size - 1):
         next_neighbor_graphs = []
         for g in neighbor_graphs:
             next_neighbor_graphs.extend(neighborhood_estimator.neighbors(g))
@@ -75,53 +112,217 @@ def perturb(graphs, neighborhood_estimator, k_steps=2):
     return neighbor_graphs
 
 
-def termination_condition(scores):
-    return max(scores) > .99
+def elitism(proposed_graphs, oracle_func, frac_instances_to_remove_per_iter):
+    scores = [oracle_func(g) for g in proposed_graphs]
+    ids = np.argsort(scores)
+    n = int(frac_instances_to_remove_per_iter * len(scores))
+    surviving_graphs = [proposed_graphs[id] for id in ids[n:]]
+    surviving_scores = [scores[id] for id in ids[n:]]
+    return surviving_graphs, surviving_scores
 
 
-def optimize(init_graphs, oracle_func, n_iter=100, sample_size=5, max_pool_size=25, k_steps=1,
-             neighborhood_estimator=None, graph_expected_improvement_estimator=None, monitor=None):
-    graphs = init_graphs[:]
-    scores = [oracle_func(g) for g in graphs]
+def optimize(graphs, oracle_func, n_iter=100,
+             n_queries_to_oracle_per_iter=5, frac_instances_to_remove_per_iter=.5,
+             sample_size_to_perturb=25, n_steps_driven_by_estimator=1,
+             sample_size_for_grammars=None,
+             neighborhood_estimators=None, score_estimator=None, monitor=None):
+    """optimize."""
+    true_scores = [oracle_func(g) for g in graphs]
     proposed_graphs = []
+    proposed_scores = []
     for i in range(n_iter):
         # update with oracle
+        proposed_graphs, proposed_scores = elitism(
+            proposed_graphs, oracle_func, frac_instances_to_remove_per_iter)
         graphs += proposed_graphs
-        scores += [oracle_func(g) for g in proposed_graphs]
+        true_scores += proposed_scores
 
-        if termination_condition(scores):
+        # termination condition
+        if max(true_scores) > .99:
             break
 
-        # update part_importance_estimator
-        neighborhood_estimator.fit_part_importance_estimator(graphs, scores)
+        # update score_estimator
+        score_estimator.fit(graphs, true_scores)
 
-        # update expected_improvement_estimator
-        graph_expected_improvement_estimator.fit(graphs, scores)
+        # update neighborhood_estimators
+        if sample_size_for_grammars is None:
+            grammar_graphs, grammar_scores = graphs, true_scores
+        else:
+            grammar_graphs, grammar_scores = sample(
+                graphs,
+                true_scores,
+                sample_size_for_grammars,
+                greedy_frac=0.5)
+        logger.info('Grammars working on a sample of %d graphs' %
+                    len(grammar_graphs))
 
-        # sample neighborhood with EI
-        sample_graphs = sample(graphs, scores, max_pool_size)
-        neighbor_graphs = perturb(sample_graphs, neighborhood_estimator, k_steps=k_steps)
-        neighbor_graphs = remove_duplicates_in_set(neighbor_graphs, graphs)
-        proposed_graphs = sample_with_expected_improvement(neighbor_graphs, sample_size, graph_expected_improvement_estimator)
+        # sample neighborhood according to oracle score
+        proposed_graphs, proposed_scores = sample(
+            graphs,
+            true_scores,
+            sample_size_to_perturb,
+            greedy_frac=0.5)
 
+        all_proposed_graphs = []
+        for neighborhood_estimator in neighborhood_estimators:
+            neighborhood_estimator.fit(grammar_graphs, grammar_scores)
+            next_proposed_graphs = proposed_graphs[:]
+            for step in range(n_steps_driven_by_estimator):
+                all_neighbor_graphs = perturb(
+                    next_proposed_graphs,
+                    neighborhood_estimator,
+                    neighborhood_size=1)
+                logger.info('%s generated %d graph variants' % (
+                    type(neighborhood_estimator).__name__, len(all_neighbor_graphs)))
+                neighbor_graphs = remove_duplicates(all_neighbor_graphs)
+                neighbor_graphs = remove_duplicates_in_set(
+                    neighbor_graphs, graphs)
+                logger.info('%d novel and distinct graphs (%d generated) from a biased sample of %d from %d initial graphs' % (
+                    len(neighbor_graphs), len(all_neighbor_graphs), len(next_proposed_graphs), len(graphs)))
+                if len(neighbor_graphs) == 0:
+                    break
+                predicted_scores = score_estimator.predict(neighbor_graphs)
+                # sample neighborhood according to surrogate score
+                if step < n_steps_driven_by_estimator - 1:
+                    sample_size = sample_size_to_perturb
+                else:
+                    sample_size = n_queries_to_oracle_per_iter
+                next_proposed_graphs, next_proposed_scores = sample(
+                    neighbor_graphs,
+                    predicted_scores,
+                    sample_size,
+                    greedy_frac=0.5)
+                logger.info('%d selected graphs  best predicted score:%.3f' % (len(next_proposed_graphs), max(next_proposed_scores)))
+            all_proposed_graphs += next_proposed_graphs
+        proposed_graphs = remove_duplicates(all_proposed_graphs)
+        proposed_graphs = remove_duplicates_in_set(proposed_graphs, graphs)
+        logger.info('%d total graphs generated' % len(proposed_graphs))
         if monitor:
-            monitor(i, proposed_graphs, graphs, graph_expected_improvement_estimator,
-                    neighborhood_estimator.part_importance_estimator)
+            monitor(i, proposed_graphs, graphs, score_estimator)
+        if len(neighbor_graphs) == 0:
+            break
     return graphs
 
 
-def optimizer_setup(decomposition, domain_graphs, target_graphs, oracle_func,
-                    grammar_conservativeness=2, n_neighbors=3, exploitation_vs_exploration=1, make_monitor=None):
-    # performance monitor
-    monitor = make_monitor(target_graphs, oracle_func, show_step=2)
+def optimizer_setup(decomposition_score_estimator=None,
+                    use_UCB_estimator=False,
+                    use_RandomForest_estimator=True,
+                    use_Linear_estimator=False,
+                    use_EI_estimator=False,
+                    n_estimators=100,
+                    exploration_vs_exploitation=0,
 
-    # neighborhood generator
-    neighborhood_estimator = NeighborhoodPartImportanceGraphGrammar(
-        decomposition_function=decomposition, context=2, count=grammar_conservativeness, frac_nodes_to_select=.5, n_neighbors=n_neighbors)
-    neighborhood_estimator.fit_grammar(domain_graphs)
-    logger.info(neighborhood_estimator)
 
-    graph_expected_improvement_estimator = GraphExpectedImprovementEstimator(
-        decomposition_funcs=decomposition, exploitation_vs_exploration=exploitation_vs_exploration)
+                    use_fixed_grammar=False,
+                    n_neighbors_fixed_grammar=None,
+                    conservativeness_fixed_grammar=1,
+                    context_size_fixed_grammar=1,
+                    decomposition_fixed_grammar=None,
+                    domain_graphs_fixed_grammar=None,
 
-    return neighborhood_estimator, graph_expected_improvement_estimator, monitor
+                    use_adaptive_grammar=False,
+                    n_neighbors_adaptive_grammar=None,
+                    conservativeness_adaptive_grammar=1,
+                    context_size_adaptive_grammar=1,
+                    part_size_adaptive_grammar=4,
+                    decomposition_adaptive_grammar=None,
+
+                    use_node_label_swapping=False,
+                    n_neighbors_node_label_swapping=None, n_node_label_swapping=1,
+
+                    use_edge_label_swapping=False,
+                    n_neighbors_edge_label_swapping=None, n_edge_label_swapping=1,
+
+                    use_edge_swapping=False,
+                    n_neighbors_edge_swapping=None, n_edge_swapping=1,
+
+                    use_node_removal=False,
+                    n_neighbors_node_removal=None, n_node_removal=1,
+
+                    use_edge_removal=False,
+                    n_neighbors_edge_removal=None, n_edge_removal=1,
+
+                    use_node_label_mutation=False,
+                    n_neighbors_node_mutation=None, n_node_mutation=1,
+
+                    use_edge_label_mutation=False,
+                    n_neighbors_edge_mutation=None, n_edge_mutation=1):
+    """optimizer_setup."""
+    neighborhood_estimators = []
+
+    if use_node_label_swapping:
+        nnls = NeighborhoodNodeLabelSwap(
+            n_nodes=n_node_label_swapping, n_neighbors=n_neighbors_node_label_swapping)
+        neighborhood_estimators.append(nnls)
+
+    if use_edge_label_swapping:
+        nels = NeighborhoodEdgeLabelSwap(
+            n_edges=n_edge_label_swapping, n_neighbors=n_neighbors_edge_label_swapping)
+        neighborhood_estimators.append(nels)
+
+    if use_edge_swapping:
+        nes = NeighborhoodEdgeSwap(
+            n_edges=n_edge_swapping, n_neighbors=n_neighbors_edge_swapping)
+        neighborhood_estimators.append(nes)
+
+    if use_node_removal:
+        nnr = NeighborhoodNodeRemove(
+            n_nodes=n_node_removal, n_neighbors=n_neighbors_node_removal)
+        neighborhood_estimators.append(nnr)
+
+    if use_edge_removal:
+        ner = NeighborhoodEdgeRemove(
+            n_edges=n_edge_removal, n_neighbors=n_neighbors_edge_removal)
+        neighborhood_estimators.append(ner)
+
+    if use_node_label_mutation:
+        nnlm = NeighborhoodNodeLabelMutation(
+            n_nodes=n_node_mutation, n_neighbors=n_neighbors_node_mutation)
+        neighborhood_estimators.append(nnlm)
+
+    if use_edge_label_mutation:
+        nelm = NeighborhoodEdgeLabelMutation(
+            n_edges=n_edge_mutation, n_neighbors=n_neighbors_edge_mutation)
+        neighborhood_estimators.append(nelm)
+
+    if use_fixed_grammar:
+        ne = NeighborhoodPartImportanceGraphGrammar(
+            decomposition_function=decomposition_fixed_grammar,
+            context=context_size_fixed_grammar,
+            count=conservativeness_fixed_grammar,
+            frac_nodes_to_select=.5,
+            n_neighbors=n_neighbors_fixed_grammar)
+        ne.fit_grammar(domain_graphs_fixed_grammar)
+        neighborhood_estimators.append(ne)
+        logger.info('Fixed grammar: %s' % ne)
+
+    if use_adaptive_grammar:
+        ane = NeighborhoodAdaptiveGraphGrammar(
+            decomposition_function=decomposition_adaptive_grammar,
+            context=context_size_adaptive_grammar,
+            count=conservativeness_adaptive_grammar,
+            n_neighbors=n_neighbors_adaptive_grammar,
+            ktop=part_size_adaptive_grammar,
+            enforce_connected=True)
+        neighborhood_estimators.append(ane)
+
+    if use_UCB_estimator:
+        score_estimator = GraphUpperConfidenceBoundEstimator(
+            decomposition_funcs=decomposition_score_estimator,
+            exploration_vs_exploitation=exploration_vs_exploitation)
+    if use_RandomForest_estimator:
+        score_estimator = GraphRandomForestScoreEstimator(
+            decomposition_funcs=decomposition_score_estimator,
+            n_estimators=n_estimators,
+            exploration_vs_exploitation=exploration_vs_exploitation)
+    if use_Linear_estimator:
+        score_estimator = GraphLinearScoreEstimator(
+            decomposition_funcs=decomposition_score_estimator,
+            n_estimators=n_estimators,
+            exploration_vs_exploitation=exploration_vs_exploitation)
+    if use_EI_estimator:
+        score_estimator = GraphExpectedImprovementEstimator(
+            decomposition_funcs=decomposition_score_estimator,
+            exploration_vs_exploitation=exploration_vs_exploitation)
+
+    return neighborhood_estimators, score_estimator

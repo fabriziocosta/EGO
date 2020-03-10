@@ -4,8 +4,13 @@
 import numpy as np
 import networkx as nx
 import random
-from graphlearn3.lsgg import lsgg
-from graphlearn3.lsgg_ego import lsgg_ego
+from ego.decompose import do_decompose
+from ego.decomposition.nodes_edges import decompose_nodes_and_edges
+from ego.decomposition.positive_and_negative import decompose_positive, decompose_negative
+from ego.decomposition.paired_neighborhoods import decompose_neighborhood
+from ego.decomposition.union import decompose_all_union
+from graphlearn.sample import LocalSubstitutionGraphGrammarSample as lsgg
+from graphlearn.lsgg_ego import lsgg_ego
 from ego.optimization.part_importance_estimator import PartImportanceEstimator
 import logging
 logger = logging.getLogger(__name__)
@@ -22,10 +27,12 @@ class NeighborhoodGraphGrammar(object):
                  part_importance_estimator=None,
                  objective_func=None):
         self.n_neighbors = n_neighbors
-        self.graph_grammar = lsgg()
-        self.graph_grammar.set_core_size(list(range(core)))
-        self.graph_grammar.set_context(context)
-        self.graph_grammar.set_min_count(count)
+        self.graph_grammar = lsgg(
+            radii=list(range(core)),
+            thickness=context,
+            filter_min_cip=count,
+            filter_min_interface=2,
+            nodelevel_radius_and_thickness=False)
         self.perturbation_size = perturbation_size
         self.part_importance_estimator = part_importance_estimator
         self.objective_func = objective_func
@@ -146,10 +153,11 @@ class NeighborhoodEgoGraphGrammar(object):
                  objective_func=None):
         self.n_neighbors = n_neighbors
         self.graph_grammar = lsgg_ego(
-            decomposition_function=decomposition_function)
-        self.graph_grammar.set_core_size([0])
-        self.graph_grammar.set_context(context)
-        self.graph_grammar.set_min_count(count)
+            decomposition_function=decomposition_function,
+            thickness=context,
+            filter_min_cip=count,
+            filter_min_interface=2,
+            nodelevel_radius_and_thickness=False)
         self.perturbation_size = perturbation_size
         self.objective_func = objective_func
 
@@ -200,17 +208,93 @@ class NeighborhoodPartImportanceGraphGrammar(object):
                  context=1,
                  count=1,
                  n_neighbors=None,
-                 frac_nodes_to_select=.5):
+                 frac_nodes_to_select=.5,
+                 enforce_connected=True):
         self.decomposition_function = decomposition_function
         self.n_neighbors = n_neighbors
         self.part_importance_estimator = PartImportanceEstimator(
             decompose_func=decomposition_function)
         self.graph_grammar = lsgg_ego(
-            decomposition_function=decomposition_function)
-        self.graph_grammar.set_core_size([0])
-        self.graph_grammar.set_context(context)
-        self.graph_grammar.set_min_count(count)
+            decomposition_function=decomposition_function,
+            thickness=context,
+            filter_min_cip=count,
+            filter_min_interface=2,
+            nodelevel_radius_and_thickness=False)
         self.frac_nodes_to_select = frac_nodes_to_select
+        self.enforce_connected = enforce_connected
+
+    def fit_grammar(self, graphs):
+        self.graph_grammar.fit(graphs)
+        return self
+
+    def fit_part_importance_estimator(self, graphs, targets):
+        self.part_importance_estimator.fit(graphs, targets)
+        return self
+
+    def fit(self, graphs, targets):
+        return self.fit_part_importance_estimator(graphs, targets)
+
+    def __repr__(self):
+        return str(self.graph_grammar)
+
+    def neighbors(self, graph, n_neighbors=None):
+        res = self.part_importance_estimator.predict(graph)
+        node_score_dict, edge_score_dict = res
+        nodes = list(graph.nodes())
+        selected_nodes = sorted(nodes, key=lambda u: node_score_dict[u])
+        selected_nodes = selected_nodes[
+            :int(len(selected_nodes) * self.frac_nodes_to_select)]
+        if n_neighbors is None:
+            n_neighbors = self.n_neighbors
+        if n_neighbors is None:
+            ns = list(self.graph_grammar.neighbors(graph))
+        else:
+            ns = list(self.graph_grammar.root_neighbors(
+                graph, selected_nodes, n_neighbors))
+            random.shuffle(ns)
+            ns = ns[:n_neighbors]
+        if self.enforce_connected:
+            ns = [g for g in ns if nx.is_connected(g)]
+        return ns
+
+
+# ----------------------------------------------------------
+
+class NeighborhoodAdaptiveGraphGrammar(object):
+
+    def __init__(self,
+                 decomposition_function=None,
+                 context=1,
+                 count=1,
+                 n_neighbors=None,
+                 ktop=4,
+                 enforce_connected=True):
+        self.ktop = ktop
+        self.decomposition_function = decomposition_function
+        self.n_neighbors = n_neighbors
+        self.part_importance_estimator = PartImportanceEstimator(
+            decompose_func=self.decomposition_function)
+        self.graph_grammar = lsgg_ego(
+            decomposition_function=self.decomposition_function,
+            thickness=context,
+            filter_min_cip=count,
+            filter_min_interface=2,
+            nodelevel_radius_and_thickness=False)
+        self.enforce_connected = enforce_connected
+
+    def fit(self, graphs, targets):
+        self.fit_part_importance_estimator(graphs, targets)
+
+        pos_dec = do_decompose(decompose_positive(ktop=self.ktop, part_importance_estimator=self.part_importance_estimator),
+                               compose_function=decompose_all_union)
+        neg_dec = do_decompose(decompose_negative(ktop=self.ktop, part_importance_estimator=self.part_importance_estimator),
+                               compose_function=decompose_all_union)
+        approx_dec = do_decompose(decompose_nodes_and_edges, decompose_neighborhood)
+        frag_dec = do_decompose(pos_dec, neg_dec, compose_function=approx_dec)
+        self.adaptive_decomposition_function = do_decompose(pos_dec, neg_dec, frag_dec)
+        self.graph_grammar.set_decomposition(self.adaptive_decomposition_function)
+        self.fit_grammar(graphs)
+        return self
 
     def fit_grammar(self, graphs):
         self.graph_grammar.fit(graphs)
@@ -224,17 +308,12 @@ class NeighborhoodPartImportanceGraphGrammar(object):
         return str(self.graph_grammar)
 
     def neighbors(self, graph, n_neighbors=None):
-        res = self.part_importance_estimator.predict(graph)
-        node_score_dict, edge_score_dict = res
-        nodes = list(graph.nodes())
-        selected_nodes = sorted(nodes, key=lambda u: node_score_dict[u])
-        selected_nodes = selected_nodes[:int(len(selected_nodes) * self.frac_nodes_to_select)]
         if n_neighbors is None:
             n_neighbors = self.n_neighbors
         if n_neighbors is None:
             ns = list(self.graph_grammar.neighbors(graph))
         else:
-            ns = list(self.graph_grammar.root_neighbors(graph, selected_nodes, n_neighbors))
-            random.shuffle(ns)
-            ns = ns[:n_neighbors]
+            ns = list(self.graph_grammar.neighbors_sample(graph, n_neighbors))
+        if self.enforce_connected:
+            ns = [g for g in ns if nx.is_connected(g)]
         return ns

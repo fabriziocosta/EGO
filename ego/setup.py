@@ -22,7 +22,7 @@ from ego.decomposition.positive_and_negative import decompose_positive, decompos
 from ego.decomposition.size import decompose_node_size, decompose_edge_size 
 from ego.decomposition.context import decompose_context
 from ego.decomposition.dilatate import decompose_dilatate
-#from ego.decomposition.union import decompose_union
+from ego.decomposition.union import decompose_all_union
 from ego.decomposition.join import decompose_node_join, decompose_edge_join
 from ego.decomposition.pair import decompose_pair
 

@@ -3,29 +3,19 @@
 
 
 from toolz import curry
+import numpy as np
 from ego.component import GraphComponent, serialize, get_subgraphs_from_node_components
 
 
 @curry
 def positive_and_negative(graph, ktop=0, part_importance_estimator=None):
     codes, fragments = part_importance_estimator.encoding_func(graph)
-    scores = [part_importance_estimator.importance_dict.get(
-        code, 0) for code in codes]
-    scores = sorted(scores)
+    scores = [part_importance_estimator.importance_dict.get(code, 0) for code in codes]
     if ktop > len(scores) - 1:
         ktop = len(scores) - 1
-    pos_threshold = scores[- int(ktop)]
-    neg_threshold = scores[int(ktop)]
-    positive_components = [set(fragment.nodes())
-                           for fragment, code in zip(fragments, codes)
-                           if part_importance_estimator.importance_dict.get(
-        code, 0) >= pos_threshold]
-
-    negative_components = [set(fragment.nodes())
-                           for fragment, code in zip(fragments, codes)
-                           if part_importance_estimator.importance_dict.get(
-        code, 0) < neg_threshold]
-
+    ids = np.argsort(scores)
+    positive_components = [set(fragments[id].nodes()) for id in ids[-ktop:]]
+    negative_components = [set(fragments[id].nodes()) for id in ids[:ktop]]
     return list(positive_components), list(negative_components)
 
 

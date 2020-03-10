@@ -30,10 +30,10 @@ def convert_dict_to_sparse_matrix(feature_rows, feature_size):
     return data_matrix
 
 
-def to_dict(codes):
+def to_dict(codes, fragments):
     row = defaultdict(int)
-    for code in codes:
-        row[code] += 1
+    for code, fragment in zip(codes, fragments):
+        row[code] += fragment.number_of_nodes()
     return row
 
 
@@ -46,8 +46,8 @@ def set_feature_size(nbits=10):
 def vectorize_graphs(graphs, encoding_func=None, feature_size=None):
     feature_rows = list()
     for graph in graphs:
-        g_codes, _ = encoding_func(graph)
-        g_dict = to_dict(g_codes)
+        g_codes, g_frags = encoding_func(graph)
+        g_dict = to_dict(g_codes, g_frags)
         feature_rows.append(g_dict)
     mtx = convert_dict_to_sparse_matrix(feature_rows, feature_size)
     return mtx
