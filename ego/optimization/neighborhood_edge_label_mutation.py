@@ -49,8 +49,6 @@ class NeighborhoodEdgeLabelMutation(object):
             g.edges[e]['label'] = l
         return g
 
-        return self
-
     def neighbors(self, graph):
         """neighbors."""
         neighs = [self._relabel(graph, self.n_edges, self.labels, self.probabilities)

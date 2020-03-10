@@ -49,8 +49,6 @@ class NeighborhoodNodeLabelMutation(object):
             g.nodes[u]['label'] = l
         return g
 
-        return self
-
     def neighbors(self, graph):
         """neighbors."""
         neighs = [self._relabel(graph, self.n_nodes, self.labels, self.probabilities)

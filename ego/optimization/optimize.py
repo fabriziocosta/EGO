@@ -4,17 +4,23 @@
 import numpy as np
 from ego.optimization.neighborhood_graph_grammar import NeighborhoodAdaptiveGraphGrammar
 from ego.optimization.neighborhood_graph_grammar import NeighborhoodPartImportanceGraphGrammar
+
 from ego.optimization.neighborhood_edge_swap import NeighborhoodEdgeSwap
+from ego.optimization.neighborhood_edge_label_swap import NeighborhoodEdgeLabelSwap
+from ego.optimization.neighborhood_edge_label_mutation import NeighborhoodEdgeLabelMutation
+from ego.optimization.neighborhood_edge_remove import NeighborhoodEdgeRemove
+from ego.optimization.neighborhood_edge_add import NeighborhoodEdgeAdd
+
 from ego.optimization.neighborhood_node_label_swap import NeighborhoodNodeLabelSwap
 from ego.optimization.neighborhood_node_label_mutation import NeighborhoodNodeLabelMutation
-from ego.optimization.neighborhood_edge_label_mutation import NeighborhoodEdgeLabelMutation
-from ego.optimization.neighborhood_edge_label_swap import NeighborhoodEdgeLabelSwap
 from ego.optimization.neighborhood_node_remove import NeighborhoodNodeRemove
-from ego.optimization.neighborhood_edge_remove import NeighborhoodEdgeRemove
+from ego.optimization.neighborhood_node_add import NeighborhoodNodeAdd
+
 from ego.optimization.score_estimator import GraphUpperConfidenceBoundEstimator
 from ego.optimization.score_estimator import GraphRandomForestScoreEstimator
 from ego.optimization.score_estimator import GraphLinearScoreEstimator
 from ego.optimization.score_estimator import GraphExpectedImprovementEstimator
+
 from ego.decomposition.paired_neighborhoods import decompose_neighborhood
 from ego.vectorize import hash_graph
 import logging
@@ -192,7 +198,8 @@ def optimize(graphs, oracle_func, n_iter=100,
                     predicted_scores,
                     sample_size,
                     greedy_frac=0.5)
-                logger.info('%d selected graphs  best predicted score:%.3f' % (len(next_proposed_graphs), max(next_proposed_scores)))
+                logger.info('%d selected graphs  best predicted score:%.3f' % (
+                    len(next_proposed_graphs), max(next_proposed_scores)))
             all_proposed_graphs += next_proposed_graphs
         proposed_graphs = remove_duplicates(all_proposed_graphs)
         proposed_graphs = remove_duplicates_in_set(proposed_graphs, graphs)
@@ -227,63 +234,83 @@ def optimizer_setup(decomposition_score_estimator=None,
                     part_size_adaptive_grammar=4,
                     decomposition_adaptive_grammar=None,
 
-                    use_node_label_swapping=False,
-                    n_neighbors_node_label_swapping=None, n_node_label_swapping=1,
 
-                    use_edge_label_swapping=False,
-                    n_neighbors_edge_label_swapping=None, n_edge_label_swapping=1,
 
                     use_edge_swapping=False,
                     n_neighbors_edge_swapping=None, n_edge_swapping=1,
 
-                    use_node_removal=False,
-                    n_neighbors_node_removal=None, n_node_removal=1,
+                    use_edge_label_swapping=False,
+                    n_neighbors_edge_label_swapping=None, n_edge_label_swapping=1,
+
+                    use_edge_label_mutation=False,
+                    n_neighbors_edge_mutation=None, n_edge_mutation=1,
 
                     use_edge_removal=False,
                     n_neighbors_edge_removal=None, n_edge_removal=1,
 
+                    use_edge_addition=False,
+                    n_neighbors_edge_addition=None, n_edge_addition=1,
+
+
+
+                    use_node_label_swapping=False,
+                    n_neighbors_node_label_swapping=None, n_node_label_swapping=1,
+
                     use_node_label_mutation=False,
                     n_neighbors_node_mutation=None, n_node_mutation=1,
 
-                    use_edge_label_mutation=False,
-                    n_neighbors_edge_mutation=None, n_edge_mutation=1):
+                    use_node_removal=False,
+                    n_neighbors_node_removal=None, n_node_removal=1,
+
+                    use_node_addition=False,
+                    n_neighbors_node_addition=None, n_node_addition=1):
     """optimizer_setup."""
     neighborhood_estimators = []
-
-    if use_node_label_swapping:
-        nnls = NeighborhoodNodeLabelSwap(
-            n_nodes=n_node_label_swapping, n_neighbors=n_neighbors_node_label_swapping)
-        neighborhood_estimators.append(nnls)
-
-    if use_edge_label_swapping:
-        nels = NeighborhoodEdgeLabelSwap(
-            n_edges=n_edge_label_swapping, n_neighbors=n_neighbors_edge_label_swapping)
-        neighborhood_estimators.append(nels)
 
     if use_edge_swapping:
         nes = NeighborhoodEdgeSwap(
             n_edges=n_edge_swapping, n_neighbors=n_neighbors_edge_swapping)
         neighborhood_estimators.append(nes)
 
-    if use_node_removal:
-        nnr = NeighborhoodNodeRemove(
-            n_nodes=n_node_removal, n_neighbors=n_neighbors_node_removal)
-        neighborhood_estimators.append(nnr)
+    if use_edge_label_swapping:
+        nels = NeighborhoodEdgeLabelSwap(
+            n_edges=n_edge_label_swapping, n_neighbors=n_neighbors_edge_label_swapping)
+        neighborhood_estimators.append(nels)
+
+    if use_edge_label_mutation:
+        nelm = NeighborhoodEdgeLabelMutation(
+            n_edges=n_edge_mutation, n_neighbors=n_neighbors_edge_mutation)
+        neighborhood_estimators.append(nelm)
 
     if use_edge_removal:
         ner = NeighborhoodEdgeRemove(
             n_edges=n_edge_removal, n_neighbors=n_neighbors_edge_removal)
         neighborhood_estimators.append(ner)
 
+    if use_edge_addition:
+        nea = NeighborhoodEdgeAdd(
+            n_edges=n_edge_addition, n_neighbors=n_neighbors_edge_addition)
+        neighborhood_estimators.append(nea)
+
+    if use_node_label_swapping:
+        nnls = NeighborhoodNodeLabelSwap(
+            n_nodes=n_node_label_swapping, n_neighbors=n_neighbors_node_label_swapping)
+        neighborhood_estimators.append(nnls)
+
     if use_node_label_mutation:
         nnlm = NeighborhoodNodeLabelMutation(
             n_nodes=n_node_mutation, n_neighbors=n_neighbors_node_mutation)
         neighborhood_estimators.append(nnlm)
 
-    if use_edge_label_mutation:
-        nelm = NeighborhoodEdgeLabelMutation(
-            n_edges=n_edge_mutation, n_neighbors=n_neighbors_edge_mutation)
-        neighborhood_estimators.append(nelm)
+    if use_node_removal:
+        nnr = NeighborhoodNodeRemove(
+            n_nodes=n_node_removal, n_neighbors=n_neighbors_node_removal)
+        neighborhood_estimators.append(nnr)
+
+    if use_node_addition:
+        nna = NeighborhoodNodeAdd(
+            n_nodes=n_node_addition, n_neighbors=n_neighbors_node_addition)
+        neighborhood_estimators.append(nna)
 
     if use_fixed_grammar:
         ne = NeighborhoodPartImportanceGraphGrammar(
