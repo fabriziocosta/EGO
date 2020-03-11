@@ -82,7 +82,7 @@ def plot_status(estimated_mean_and_std_target, current_best, scores_list, num_or
     
 
 
-def make_monitor(target_graph, oracle_func, show_step=1, draw_graphs=None):
+def make_monitor(target_graph, oracle_func, show_step=1, draw_graphs=None, draw_history=None):
     history = []
     estimated_mean_and_std_target=[]
     current_best=[]
@@ -113,5 +113,7 @@ def make_monitor(target_graph, oracle_func, show_step=1, draw_graphs=None):
 
             if len(duration)>2: print('%d) corr coeff true vs preds: %.3f  runtime:%.1f mins' % (i+1, np.corrcoef(true_scores,pred_scores)[0,1], (duration[-1]-duration[-2])/60))       
             display_graph_list(graphs+[target_graph], oracle_func, score_estimator, n_max=6, draw_graphs=draw_graphs)
+            print('Evolution of current best proposal')
+            draw_history(graphs, oracle_func)
             
     return monitor

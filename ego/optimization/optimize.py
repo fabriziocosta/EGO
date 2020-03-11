@@ -158,17 +158,17 @@ def optimize(graphs, oracle_func, n_iter=100,
 
         # update neighborhood_estimators
         if sample_size_for_grammars is None:
-            grammar_graphs, grammar_scores = graphs, true_scores
+            neighborhood_fitting_graphs, neighborhood_fitting_scores = graphs, true_scores
         else:
-            grammar_graphs, grammar_scores = sample(
+            neighborhood_fitting_graphs, neighborhood_fitting_scores = sample(
                 graphs,
                 true_scores,
                 sample_size_for_grammars,
                 greedy_frac=0.5)
-        logger.info('Grammars working on a sample of %d graphs' %
-                    len(grammar_graphs))
+        logger.info('Fitting neighborhood estimators on a sample of %d graphs' %
+                    len(neighborhood_fitting_graphs))
 
-        # sample neighborhood according to oracle score
+        # select small number of promising graphs for neighborhood expansion
         proposed_graphs, proposed_scores = sample(
             graphs,
             true_scores,
@@ -177,7 +177,7 @@ def optimize(graphs, oracle_func, n_iter=100,
 
         all_proposed_graphs = []
         for neighborhood_estimator in neighborhood_estimators:
-            neighborhood_estimator.fit(grammar_graphs, grammar_scores)
+            neighborhood_estimator.fit(neighborhood_fitting_graphs, neighborhood_fitting_scores)
             next_proposed_graphs = proposed_graphs[:]
             for step in range(n_steps_driven_by_estimator):
                 all_neighbor_graphs = perturb(
@@ -209,7 +209,13 @@ def optimize(graphs, oracle_func, n_iter=100,
             all_proposed_graphs += next_proposed_graphs
         proposed_graphs = remove_duplicates(all_proposed_graphs)
         proposed_graphs = remove_duplicates_in_set(proposed_graphs, graphs)
-        logger.info('%d total graphs generated' % len(proposed_graphs))
+        logger.info('selecting %d out of %d total non redundant graphs generated' % (n_queries_to_oracle_per_iter, len(proposed_graphs)))
+        predicted_scores = score_estimator.predict(proposed_graphs)
+        proposed_graphs, proposed_scores = sample(
+            proposed_graphs,
+            predicted_scores,
+            n_queries_to_oracle_per_iter,
+            greedy_frac=0.5)
         if monitor:
             monitor(i, proposed_graphs, graphs, score_estimator)
         if len(neighbor_graphs) == 0:
