@@ -106,14 +106,20 @@ def perturb(graphs, neighborhood_estimator, neighborhood_size=1):
     # generate a fixed num of neighbors for each graph in input
     neighbor_graphs = []
     for g in graphs:
-        neighbor_graphs.extend(neighborhood_estimator.neighbors(g))
+        neighbors = neighborhood_estimator.neighbors(g)
+        for neighbor in neighbors:
+            neighbor.graph['parent'] = g.copy()
+        neighbor_graphs.extend(neighbors)
     # iterate the neighbour extraction neighborhood_size times
     # this allows to consider moves that do not lead immediately to an improved
     # solution but that could lead to it in multiple steps
     for k in range(neighborhood_size - 1):
         next_neighbor_graphs = []
         for g in neighbor_graphs:
-            next_neighbor_graphs.extend(neighborhood_estimator.neighbors(g))
+            neighbors = neighborhood_estimator.neighbors(g)
+            for neighbor in neighbors:
+                neighbor.graph['parent'] = g.copy()
+            next_neighbor_graphs.extend(neighbors)
         neighbor_graphs = next_neighbor_graphs[:]
     return neighbor_graphs
 

@@ -180,3 +180,16 @@ def display_score_statistics(domain_graphs, oracle_func):
     plt.title('Scores')
     plt.grid()
     plt.show()
+    
+    
+def draw_history(graphs, oracle_func):
+    best_graph = max(graphs, key=lambda g:oracle_func(g))
+    history = [best_graph]
+    while True:
+        g = history[-1]
+        parent = g.graph.get('parent',None)
+        if parent is None:
+            break
+        history.append(parent)
+    titles = ['iter:%d\nscore:%.3f'%(len(history) - i,oracle_func(g)) for i,g in enumerate(history)]
+    draw_graphs(history,titles)
