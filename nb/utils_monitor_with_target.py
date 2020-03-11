@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter1d
 from scipy import interpolate
 from eden.display import draw_graph, draw_graph_set, map_labels_to_colors
