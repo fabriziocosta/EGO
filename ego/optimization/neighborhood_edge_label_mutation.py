@@ -46,11 +46,30 @@ class NeighborhoodEdgeLabelMutation(object):
         random.shuffle(edge_ids)
         edge_ids = edge_ids[:n_mutations]
         for l, e in zip(new_labels, edge_ids):
-            g.edges[e]['label'] = l
+            source, dest = e
+            g.edges[source, dest]['label'] = l
         return g
 
     def neighbors(self, graph):
         """neighbors."""
+        if self.n_neighbors is None:
+            return self.all_neighbors(graph)
+        else:
+            return self.sample_neighbors(graph)
+
+    def sample_neighbors(self, graph):
+        """sample_neighbors."""
         neighs = [self._relabel(graph, self.n_edges, self.labels, self.probabilities)
                   for i in range(self.n_neighbors)]
         return neighs
+
+    def all_neighbors(self, graph):
+        """all_neighbors."""
+        graphs = []
+        edge_ids = list(graph.edges())
+        for edge_id in edge_ids:
+            for label in self.labels:
+                g = graph.copy()
+                g.edges[edge_id]['label'] = label
+                graphs.append(g)
+        return graphs

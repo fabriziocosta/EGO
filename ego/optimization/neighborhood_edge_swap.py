@@ -17,8 +17,28 @@ class NeighborhoodEdgeSwap(object):
         return self
 
     def neighbors(self, graph):
+        """neighbors."""
         if self.n_neighbors is None:
-            return self._all_swaps(graph)
+            return self.all_neighbors(graph)
+        else:
+            return self.sample_neighbors(graph)
+
+    def all_neighbors(self, graph):
+        """all_neighbors."""
+        graphs = []
+        edges = list(graph.edges())
+        for j in range(len(edges) - 1):
+            for k in range(j + 1, len(edges)):
+                e1 = edges[j]
+                e2 = edges[k]
+                g = graph.copy()
+                self._swap_edge(g, e1, e2)
+                if nx.is_connected(g) and self._same_size(g, graph):
+                    graphs.append(g)
+        return graphs
+
+    def sample_neighbors(self, graph):
+        """sample_neighbors."""
         neighs = [self.swap(graph) for i in range(self.n_neighbors)]
         return neighs
 
@@ -56,20 +76,8 @@ class NeighborhoodEdgeSwap(object):
     def _same_size(self, g, gg):
         return g.number_of_nodes() == gg.number_of_nodes() and g.number_of_edges() == gg.number_of_edges()
 
-    def _all_swaps(self, gg):
-        graphs = []
-        edges = list(gg.edges())
-        for j in range(len(edges) - 1):
-            for k in range(j + 1, len(edges)):
-                e1 = edges[j]
-                e2 = edges[k]
-                g = gg.copy()
-                self._swap_edge(g, e1, e2)
-                if nx.is_connected(g) and self._same_size(g, gg):
-                    graphs.append(g)
-        return graphs
-
     def swap(self, gg):
+        """swap."""
         g = gg.copy()
         for i in range(self.n_edges):
             gp = self._swap(g)

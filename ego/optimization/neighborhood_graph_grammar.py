@@ -5,9 +5,7 @@ import numpy as np
 import networkx as nx
 import random
 from ego.decompose import do_decompose
-from ego.decomposition.nodes_edges import decompose_nodes_and_edges
 from ego.decomposition.positive_and_negative import decompose_positive, decompose_negative
-from ego.decomposition.paired_neighborhoods import decompose_neighborhood
 from ego.decomposition.union import decompose_all_union
 from graphlearn.sample import LocalSubstitutionGraphGrammarSample as lsgg
 from graphlearn.lsgg_ego import lsgg_ego
@@ -263,19 +261,21 @@ class NeighborhoodPartImportanceGraphGrammar(object):
 class NeighborhoodAdaptiveGraphGrammar(object):
 
     def __init__(self,
-                 decomposition_function=None,
+                 base_decomposition_function=None,
+                 approximate_decomposition_function=None,
                  context=1,
                  count=1,
                  n_neighbors=None,
                  ktop=4,
                  enforce_connected=True):
         self.ktop = ktop
-        self.decomposition_function = decomposition_function
+        self.base_decomposition_function = base_decomposition_function
+        self.approximate_decomposition_function = approximate_decomposition_function
         self.n_neighbors = n_neighbors
         self.part_importance_estimator = PartImportanceEstimator(
-            decompose_func=self.decomposition_function)
+            decompose_func=self.base_decomposition_function)
         self.graph_grammar = lsgg_ego(
-            decomposition_function=self.decomposition_function,
+            decomposition_function=self.base_decomposition_function,
             thickness=context,
             filter_min_cip=count,
             filter_min_interface=2,
@@ -289,8 +289,7 @@ class NeighborhoodAdaptiveGraphGrammar(object):
                                compose_function=decompose_all_union)
         neg_dec = do_decompose(decompose_negative(ktop=self.ktop, part_importance_estimator=self.part_importance_estimator),
                                compose_function=decompose_all_union)
-        approx_dec = do_decompose(decompose_nodes_and_edges, decompose_neighborhood)
-        frag_dec = do_decompose(pos_dec, neg_dec, compose_function=approx_dec)
+        frag_dec = do_decompose(pos_dec, neg_dec, compose_function=self.approximate_decomposition_function)
         self.adaptive_decomposition_function = do_decompose(pos_dec, neg_dec, frag_dec)
         self.graph_grammar.set_decomposition(self.adaptive_decomposition_function)
         self.fit_grammar(graphs)

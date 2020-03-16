@@ -5,9 +5,7 @@ from scipy import interpolate
 from eden.display import draw_graph, draw_graph_set, map_labels_to_colors
 import time
 
-def display_graph_list(graphs, oracle_func, score_estimator, n_max, draw_graphs=None):
-    n=6
-    
+def display_graph_list(graphs, oracle_func, score_estimator, draw_graphs=None):    
     true_scores = np.array([oracle_func(g) for g in graphs])
     oracle_ids = np.argsort(-true_scores)
     pred_scores = np.array([score_estimator.predict([g])[0] for g in graphs])
@@ -16,22 +14,21 @@ def display_graph_list(graphs, oracle_func, score_estimator, n_max, draw_graphs=
     #oracle
     titles = []
     gs = []
-    for id in oracle_ids[:n_max]:
+    n=2
+    for id in oracle_ids[:n+1]:
         true_score = true_scores[id]
         pred_score = pred_scores[id]
         titles.append('true:%.3f pred:%.3f  '%(true_score, pred_score))
         gs.append(graphs[id])
-    draw_graphs(gs, titles=titles, n_graphs_per_line=n)
     
     #preds
-    titles = []
-    gs = []
-    for id in pred_ids[:n_max]:
+    for id in pred_ids[:n]:
         true_score = true_scores[id]
         pred_score = pred_scores[id]
         titles.append('true:%.3f pred:%.3f  '%(true_score, pred_score))
         gs.append(graphs[id])
-    draw_graphs(gs, titles=titles, n_graphs_per_line=n)
+        
+    draw_graphs(gs, titles=titles, n_graphs_per_line=2*n+1)
 
 def smooth(x,y, sigma_fact=7):
     sigma = (max(x)-min(x))/sigma_fact
@@ -82,7 +79,7 @@ def plot_status(estimated_mean_and_std_target, current_best, scores_list, num_or
     
 
 
-def make_monitor(target_graph, oracle_func, show_step=1, draw_graphs=None, draw_history=None):
+def make_monitor(target_graph, oracle_func, draw_graphs=None, draw_history=None, show_step=1):
     history = []
     estimated_mean_and_std_target=[]
     current_best=[]
@@ -104,15 +101,14 @@ def make_monitor(target_graph, oracle_func, show_step=1, draw_graphs=None, draw_
         best_graph = graphs[np.argmax(true_scores)]
         print('< %.3f > best score in new %d instances'%(best_score, len(graphs)))
         tot_score, score, size_similarity, structural_similarity, composition_similarity, comp_and_struct_similarity, noise = oracle_func(best_graph, explain=True)
-        print('    score decomposition: %.3f = size:%.3f  structure:%.3f  composition:%.3f  comp_struct:%.3f'%(score, size_similarity, structural_similarity, composition_similarity, comp_and_struct_similarity))
+        print('    score decomposition: %.3f = geom. mean of< size:%.3f  structure:%.3f  composition:%.3f  comp_struct:%.3f >'%(score, size_similarity, structural_similarity, composition_similarity, comp_and_struct_similarity))
         current_best.append(best_score)
         duration.append(time.clock())
         if i>0 and (show_step==1 or i%show_step==0):
             if len(estimated_mean_and_std_target)>5:
                 plot_status(estimated_mean_and_std_target,current_best, scores_list, num_oracle_queries, 5)
-
-            if len(duration)>2: print('%d) corr coeff true vs preds: %.3f  runtime:%.1f mins' % (i+1, np.corrcoef(true_scores,pred_scores)[0,1], (duration[-1]-duration[-2])/60))       
-            display_graph_list(graphs+[target_graph], oracle_func, score_estimator, n_max=6, draw_graphs=draw_graphs)
+            if len(duration)>2: print('corr coeff true vs preds: %.3f  runtime:%.1f mins' % (np.corrcoef(true_scores,pred_scores)[0,1], (duration[-1]-duration[-2])/60))       
+            display_graph_list(graphs+[target_graph], oracle_func, score_estimator, draw_graphs=draw_graphs)
             print('Evolution of current best proposal')
             draw_history(graphs, oracle_func)
             

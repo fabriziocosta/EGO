@@ -77,7 +77,7 @@ def hash_graph(graph, decomposition_funcs=None, preprocessors=None, nbits=14, se
     return int(hash(dat) & bitmask) + 1
 
 
-def get_feature_dict(graphs, decomposition_funcs=None, preprocessors=None, nbits=10, seed=1, return_counts=False):
+def get_feature_dict(graphs, decomposition_funcs=None, preprocessors=None, nbits=14, seed=1, return_counts=False):
     feature_size, bitmask = set_feature_size(nbits=nbits)
     encoding_func = make_encoder(
         decomposition_funcs,
@@ -97,7 +97,7 @@ def get_feature_dict(graphs, decomposition_funcs=None, preprocessors=None, nbits
         return feature_dict
 
 
-def get_feature_set(graphs, decomposition_funcs=None, preprocessors=None, nbits=10, seed=1):
+def get_feature_set(graphs, decomposition_funcs=None, preprocessors=None, nbits=14, seed=1):
     feature_size, bitmask = set_feature_size(nbits=nbits)
     encoding_func = make_encoder(
         decomposition_funcs,

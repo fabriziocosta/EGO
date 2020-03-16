@@ -19,14 +19,22 @@ class NeighborhoodEdgeLabelSwap(object):
     def neighbors(self, graph):
         """neighbors."""
         if self.n_neighbors is None:
-            graphs = [graph]
-            for i in range(self.n_edges):
-                graphs = [gg for g in graphs for gg in self._all_neighbors(g)]
-            return graphs
+            return self.all_neighbors(graph)
+        else:
+            return self.sample_neighbors(graph)
 
+    def sample_neighbors(self, graph):
+        """sample_neighbors."""
         neighs = [self._swap_edges(graph, self.n_edges)
                   for i in range(self.n_neighbors)]
         return neighs
+
+    def all_neighbors(self, graph):
+        """all_neighbors."""
+        graphs = [graph]
+        for i in range(self.n_edges):
+            graphs = [gg for g in graphs for gg in self._all_neighbors(g)]
+        return graphs
 
     def _all_neighbors(self, graph):
         graphs = []

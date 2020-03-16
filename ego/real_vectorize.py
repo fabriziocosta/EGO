@@ -39,7 +39,7 @@ def real_vectorize_single(graph, decomposition_funcs, bitmask, feature_size):
 
 
 def real_vectorize(graphs, decomposition_funcs, preprocessors=None,
-                   nbits=10, seed=1):
+                   nbits=14, seed=1):
     feature_size, bitmask = set_feature_size(nbits=nbits)
     return sp.sparse.vstack([real_vectorize_single(
         graph, decomposition_funcs, bitmask, feature_size)

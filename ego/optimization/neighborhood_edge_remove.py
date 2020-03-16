@@ -21,12 +21,21 @@ class NeighborhoodEdgeRemove(object):
     def neighbors(self, graph):
         """neighbors."""
         if self.n_neighbors is None:
-            edges = list(graph.edges())
-            combs = combinations(edges, self.n_edges)
-            neighs = [self._remove_edge(graph, edge_ids) for edge_ids in combs]
+            return self.all_neighbors(graph)
         else:
-            neighs = [self._remove(graph, self.n_edges)
-                      for i in range(self.n_neighbors)]
+            return self.sample_neighbors(graph)
+
+    def all_neighbors(self, graph):
+        """all_neighbors."""
+        edges = list(graph.edges())
+        combs = combinations(edges, self.n_edges)
+        neighs = [self._remove_edge(graph, edge_ids) for edge_ids in combs]
+        return neighs
+
+    def sample_neighbors(self, graph):
+        """sample_neighbors."""
+        neighs = [self._remove(graph, self.n_edges)
+                  for i in range(self.n_neighbors)]
         return neighs
 
     def _remove_edge(self, gg, edge_ids):

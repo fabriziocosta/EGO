@@ -51,6 +51,24 @@ class NeighborhoodNodeLabelMutation(object):
 
     def neighbors(self, graph):
         """neighbors."""
+        if self.n_neighbors is None:
+            return self.all_neighbors(graph)
+        else:
+            return self.sample_neighbors(graph)
+
+    def sample_neighbors(self, graph):
+        """sample_neighbors."""
         neighs = [self._relabel(graph, self.n_nodes, self.labels, self.probabilities)
                   for i in range(self.n_neighbors)]
         return neighs
+
+    def all_neighbors(self, graph):
+        """all_neighbors."""
+        graphs = []
+        node_ids = list(graph.nodes())
+        for node_id in node_ids:
+            for label in self.labels:
+                g = graph.copy()
+                g.nodes[node_id]['label'] = label
+                graphs.append(g)
+        return graphs
