@@ -20,11 +20,17 @@ class NeighborhoodNodeSmooth(object):
 
     def _smooth(self, graph, n_nodes):
         g = graph.copy()
-        node_ids = list(g.nodes())
-        random.shuffle(node_ids)
         counter = 0
-        for u in node_ids:
+        for i in range(n_nodes):
+            node_ids = list(g.nodes())
+            random.shuffle(node_ids)
+            u = node_ids[0]
             neigh_list = list(g.neighbors(u))
+            if u in neigh_list:
+                neigh_list = set(neigh_list)
+                neigh_list.remove(u)
+                neigh_list = list(neigh_list)
+            assert(u not in neigh_list)
             if len(neigh_list) >= 2:
                 v, k = np.random.choice(neigh_list, 2, replace=False)
                 ev = g.edges[u, v]['label']
@@ -32,6 +38,8 @@ class NeighborhoodNodeSmooth(object):
                 el = np.random.choice([ev, ek], 1)[0]
                 g.remove_node(u)
                 g.add_edge(v, k, label=el)
+                assert(u != v)
+                assert(u != k)
                 counter += 1
                 if counter >= n_nodes:
                     break

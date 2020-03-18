@@ -1,22 +1,27 @@
 import numpy as np
 import networkx as nx
-from ego.decomposition.paired_neighborhoods import decompose_paired_neighborhoods, decompose_neighborhood
-from ego.vectorize import hash_graph
-from toolz import curry, pipe
-from eden_chem.io.pubchem import download
-from eden_chem.io.rdkitutils import sdf_to_nx
 import random
-from GraphOptimizer.load_utils import pre_process, _random_sample
-from eden_chem.io.pubchem import get_assay_description
-from utils_oracle_with_target import oracle_setup
-from rdkit.Chem.Draw import SimilarityMaps
-from eden_chem.io.rdkitutils import nx_to_rdkit
+import logging
 import matplotlib.pyplot as plt
+from toolz import curry, pipe
 from IPython.core.display import display
-from eden_chem.display.rdkitutils import nx_to_image
+
 from eden.display import draw_graph, draw_graph_set, map_labels_to_colors
 from eden.util import configure_logging
-import logging
+from eden_chem.io.pubchem import download
+from eden_chem.io.rdkitutils import sdf_to_nx
+from eden_chem.load_utils import pre_process, _random_sample
+from eden_chem.io.pubchem import get_assay_description
+from eden_chem.io.rdkitutils import nx_to_rdkit
+from eden_chem.display.rdkitutils import nx_to_image
+
+from ego.decomposition.paired_neighborhoods import decompose_paired_neighborhoods, decompose_neighborhood
+from ego.vectorize import hash_graph
+
+from utils_oracle_with_target import oracle_setup
+
+
+
 logger = logging.getLogger()
 configure_logging(logger, verbosity=1)
 

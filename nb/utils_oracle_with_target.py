@@ -40,12 +40,12 @@ def oracle_setup(target_graph, random_noise=0.05, include_structural_similarity=
         structural_similarity = structural_oracle_func(g)
         composition_similarity = compositional_oracle_func(g)
         comp_and_struct_similarity = comp_and_struct_oracle_func(g)
-        #score = min(size_similarity,structural_similarity,composition_similarity)
         score = sp.stats.gmean([size_similarity,structural_similarity,composition_similarity,comp_and_struct_similarity])
         noise = random.random()*random_noise
         tot_score = score + noise 
         if explain:
-            return tot_score, score, size_similarity, structural_similarity, composition_similarity, comp_and_struct_similarity, noise
+            explanation = {'1) size':size_similarity, '2) struct':structural_similarity, '3) comp':composition_similarity, '4) comp&struct':comp_and_struct_similarity}
+            return score, explanation
         else:
             return tot_score
 

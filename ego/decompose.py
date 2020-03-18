@@ -115,10 +115,10 @@ def do_decompose(*decomposition_functions, **kargs):
         to be aggregated.
 
         aggregate_function: the higher order decomposition.
-        Default is concatenate.
+        Default is concatenate. Default: decompose_concatenate
 
         compose_function: the decomposition applied to the result of
-        the aggregtion. Default is identity.
+        the aggregtion. Default: decompose_identity.
 
     Returns:
         a decomposition function.

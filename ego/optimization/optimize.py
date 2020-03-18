@@ -145,7 +145,7 @@ def optimize(graphs, oracle_func, n_iter=100,
     proposed_graphs = []
     proposed_scores = []
     for i in range(n_iter):
-        logger.info('- iteration: %d' % (i + 1))
+        logger.info('\n- iteration: %d' % (i + 1))
         # update with oracle
         proposed_graphs, proposed_scores = elitism(
             proposed_graphs, oracle_func, frac_instances_to_remove_per_iter)
@@ -157,8 +157,11 @@ def optimize(graphs, oracle_func, n_iter=100,
             break
 
         # update score_estimator
-        logger.info('Fitting score estimator on %d graphs' % len(graphs))
+        score_estimator_start_time = time.clock()
         score_estimator.fit(graphs, true_scores)
+        score_estimator_end_time = time.clock()
+        score_estimator_elapsed_time = (score_estimator_end_time - score_estimator_start_time) / 60.0
+        logger.info('Score estimator fitted on %d graphs in %.1f min' % (len(graphs), score_estimator_elapsed_time))
 
         # update neighborhood_estimators
         if sample_size_for_grammars is None:
@@ -169,8 +172,6 @@ def optimize(graphs, oracle_func, n_iter=100,
                 true_scores,
                 sample_size_for_grammars,
                 greedy_frac=0.5)
-        logger.info('Fitting neighborhood estimators on a sample of %d graphs' %
-                    len(neighborhood_fitting_graphs))
 
         # select small number (sample_size_to_perturb) of promising graphs for neighborhood expansion
         proposed_graphs, proposed_scores = sample(
@@ -210,8 +211,12 @@ def optimize(graphs, oracle_func, n_iter=100,
                     greedy_frac=0.5)
                 end_time = time.clock()
                 elapsed_time = (end_time - start_time) / 60.0
-                logger.info('%d:%d/%d) %18s:%4d novel graphs (%4d generated) -> %3d selected graphs  [best predicted score:%.3f]    %.1f min' % (
-                    (step + 1), n_estimator + 1, len(neighborhood_estimators),
+                if n_steps_driven_by_estimator == 1:
+                    step_str = ''
+                else:
+                    step_str = '%d:' % (step + 1)
+                logger.info('%s%2d/%d) %20s:%4d novel graphs out of %4d generated  %3d selected graphs   best predicted score:%.3f   time:%.1f min' % (
+                    step_str, n_estimator + 1, len(neighborhood_estimators),
                     type(neighborhood_estimator).__name__.replace('Neighborhood', ''),
                     len(neighbor_graphs), len(all_neighbor_graphs),
                     len(next_proposed_graphs), max(next_proposed_scores),
@@ -220,8 +225,8 @@ def optimize(graphs, oracle_func, n_iter=100,
         proposed_graphs = remove_duplicates(all_proposed_graphs)
         proposed_graphs = remove_duplicates_in_set(proposed_graphs, graphs)
         if n_queries_to_oracle_per_iter < len(proposed_graphs):
-            logger.info('sampling %d out of %d total non redundant graphs generated' % (
-                n_queries_to_oracle_per_iter, len(proposed_graphs)))
+            logger.info('sampling %d out of %d non redundant graphs out of %d graphs generated' % (
+                n_queries_to_oracle_per_iter, len(proposed_graphs), len(all_proposed_graphs)))
             predicted_scores = score_estimator.predict(proposed_graphs)
             proposed_graphs, proposed_scores = sample(
                 proposed_graphs,
@@ -235,7 +240,7 @@ def optimize(graphs, oracle_func, n_iter=100,
         iter_end_time = time.clock()
         iter_elapsed_time_m = (iter_end_time - iter_start_time) / 60.0
         iter_elapsed_time_h = iter_elapsed_time_m / 60.0
-        logger.info(' - iteration time: %.1f min (%.1f h)' % (iter_elapsed_time_m, iter_elapsed_time_h))
+        logger.info('overall iteration time: %.1f min (%.1f h)' % (iter_elapsed_time_m, iter_elapsed_time_h))
     return graphs
 
 

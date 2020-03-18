@@ -8,6 +8,21 @@ import random
 from toolz import curry
 from eden.display import draw_graph, draw_graph_set, map_labels_to_colors
 
+from ego.optimization.neighborhood_edge_swap import NeighborhoodEdgeSwap
+from ego.optimization.neighborhood_edge_label_swap import NeighborhoodEdgeLabelSwap
+from ego.optimization.neighborhood_edge_label_mutation import NeighborhoodEdgeLabelMutation
+from ego.optimization.neighborhood_edge_move import NeighborhoodEdgeMove
+from ego.optimization.neighborhood_edge_remove import NeighborhoodEdgeRemove
+from ego.optimization.neighborhood_edge_add import NeighborhoodEdgeAdd
+from ego.optimization.neighborhood_edge_expand import NeighborhoodEdgeExpand
+from ego.optimization.neighborhood_edge_contract import NeighborhoodEdgeContract
+
+from ego.optimization.neighborhood_node_label_swap import NeighborhoodNodeLabelSwap
+from ego.optimization.neighborhood_node_label_mutation import NeighborhoodNodeLabelMutation
+from ego.optimization.neighborhood_node_remove import NeighborhoodNodeRemove
+from ego.optimization.neighborhood_node_add import NeighborhoodNodeAdd
+from ego.optimization.neighborhood_node_smooth import NeighborhoodNodeSmooth
+
 from eden.util import configure_logging
 import logging
 logger = logging.getLogger()
@@ -22,7 +37,7 @@ def draw_graphs(graphs, titles, n_graphs_per_line=6):
     gs = graphs[:]
     for g, t in zip(gs, titles):
         g.graph['id'] = str(t)
-    kwargs = dict(colormap=colormap, vertex_size=80, edge_label=None, vertex_color_dict=colors,
+    kwargs = dict(colormap=colormap, vertex_size=80, edge_label=None, vertex_color_dict=colors, vmax=1, vmin=0,
                   vertex_color='_label_', vertex_label=None, layout='kk')
     draw_graph_set(gs, n_graphs_per_line=n_graphs_per_line, size=size, **kwargs)
 
@@ -52,19 +67,24 @@ def display_ktop_graphs(graphs, oracle_func, n_max=6):
 
 
 def make_instance(length=20, alphabet_size=3, frac=.3, start_char=97):
-    n_frac = int(length * frac / (alphabet_size - 1))
+    if alphabet_size == 1:
+        ch = chr(start_char)
+        line = [ch]*length
+        return ''.join(line)
+        
+    n_frac=int(length*frac/(alphabet_size-1))
 
-    def make_char(i, start_char=97):
-        return chr(i + start_char)
+    def make_char(i,start_char=97):
+        return chr(i+start_char)
 
     def make_chars(i, dim, start_char=97):
-        return make_char(i, start_char) * dim
+        return make_char(i,start_char)*dim
 
-    line = ''
-    line += make_chars(0, length - n_frac * (alphabet_size - 1), start_char)
+    line=''
+    line += make_chars(0, length - n_frac*(alphabet_size-1), start_char)
     for i in range(1, alphabet_size):
         line += make_chars(i, n_frac, start_char)
-    line = list(line)
+    line=list(line)
     random.shuffle(line)
     return ''.join(line)
 
@@ -125,19 +145,39 @@ def make_sequence_data(target_graph, n_instances, diversity):
     return graphs
 
 
-def make_variants(target_graph):
-    from ego.optimization.neighborhood_edge_swap import NeighborhoodEdgeSwap
-    nes = NeighborhoodEdgeSwap(n_edges=2, n_neighbors=10)
-    from ego.optimization.neighborhood_node_label_swap import NeighborhoodNodeLabelSwap
-    nns = NeighborhoodNodeLabelSwap(n_nodes=1, n_neighbors=10)
-    from ego.optimization.neighborhood_node_remove import NeighborhoodNodeRemove
-    nnr = NeighborhoodNodeRemove(n_neighbors=10, n_nodes=1)
+def make_variants(target_graph=None, n_iterations=2, n_neighbors=2, neighborhood_estimators=None):
+    graphs = [target_graph]
 
-    gs = [target_graph]
-    transformations = [nes, nns]  # [nes, nns, nnr]
-    for ne in transformations:
-        gs = [ng for g in gs for ng in ne.neighbors(g)]
-    return gs
+    transformations = []
+    for neighborhood_estimator in neighborhood_estimators:
+        if neighborhood_estimator == 'edge_swap':
+            transformations.append(NeighborhoodEdgeSwap(n_neighbors=n_neighbors).fit(graphs, None))
+        if neighborhood_estimator == 'edge_move':
+            transformations.append(NeighborhoodEdgeMove(n_neighbors=n_neighbors).fit(graphs, None))
+        if neighborhood_estimator == 'edge_remove':
+            transformations.append(NeighborhoodEdgeRemove(n_neighbors=n_neighbors).fit(graphs, None))
+        if neighborhood_estimator == 'edge_add':
+            transformations.append(NeighborhoodEdgeAdd(n_neighbors=n_neighbors).fit(graphs, None))
+        if neighborhood_estimator == 'edge_expand':
+            transformations.append(NeighborhoodEdgeExpand(n_neighbors=n_neighbors).fit(graphs, None))
+        if neighborhood_estimator == 'edge_contract':
+            transformations.append(NeighborhoodEdgeContract(n_neighbors=n_neighbors).fit(graphs, None))
+
+        if neighborhood_estimator == 'node_label_swap':
+            transformations.append(NeighborhoodNodeLabelSwap(n_neighbors=n_neighbors).fit(graphs, None))
+        if neighborhood_estimator == 'node_label_mutation':
+            transformations.append(NeighborhoodNodeLabelMutation(n_neighbors=n_neighbors).fit(graphs, None))
+        if neighborhood_estimator == 'node_add':
+            transformations.append(NeighborhoodNodeAdd(n_neighbors=n_neighbors).fit(graphs, None))
+        if neighborhood_estimator == 'node_remove':
+            transformations.append(NeighborhoodNodeRemove(n_neighbors=n_neighbors).fit(graphs, None))
+        if neighborhood_estimator == 'node_smooth':
+            transformations.append(NeighborhoodNodeSmooth(n_neighbors=n_neighbors).fit(graphs, None))
+            
+    for iter in range(n_iterations):
+        for neighborhood_estimator in transformations:
+            graphs = [neighbor_graph for g in graphs for neighbor_graph in neighborhood_estimator.neighbors(g)]
+    return graphs
 
 
 def remove_duplicates(graphs):
@@ -147,7 +187,7 @@ def remove_duplicates(graphs):
     return list(selected_graphs_dict.values())
 
 
-def build_artificial_experiment(GRAPH_TYPE, instance_size, n_init_instances, n_domain_instances, alphabet_size, diversity, max_score_threshold):
+def build_artificial_experiment(GRAPH_TYPE='degree', instance_size=20, n_init_instances=10, n_domain_instances=100, alphabet_size=4, max_score_threshold=.8, oracle_func=None, neighborhood_estimators=['edge_swap','node_label_swap'], n_iterations=4, n_neighbors_per_estimator_per_iteration=2):
     if GRAPH_TYPE == 'path':
         graph_generator = random_path_graph(n=instance_size)
 
@@ -168,9 +208,10 @@ def build_artificial_experiment(GRAPH_TYPE, instance_size, n_init_instances, n_d
         graph_generator = random_dense_graph(n=instance_size, m=38)
 
     target_graph = make_graph(graph_generator, alphabet_size=alphabet_size, frac=.5)
-    domain_graphs = make_variants(target_graph)
+    domain_graphs = make_variants(target_graph, n_iterations, n_neighbors_per_estimator_per_iteration, neighborhood_estimators)
     domain_graphs = domain_graphs[:n_domain_instances]
-    oracle_func = oracle_setup(target_graph, random_noise=0.0)
+    if oracle_func is None: 
+        oracle_func = oracle_setup(target_graph, random_noise=0.0)
     domain_graphs = [g for g in domain_graphs if oracle_func(g) < max_score_threshold]
     domain_graphs = remove_duplicates(domain_graphs)
     sorted_graphs = sorted(domain_graphs, key=lambda g: oracle_func(g), reverse=True)
