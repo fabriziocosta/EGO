@@ -4,6 +4,7 @@ import random
 import logging
 import matplotlib.pyplot as plt
 from toolz import curry, pipe
+from collections import defaultdict
 from IPython.core.display import display
 
 from eden.display import draw_graph, draw_graph_set, map_labels_to_colors
@@ -17,6 +18,8 @@ from eden_chem.display.rdkitutils import nx_to_image
 
 from ego.decomposition.paired_neighborhoods import decompose_paired_neighborhoods, decompose_neighborhood
 from ego.vectorize import hash_graph
+from ego.vectorize import set_feature_size, vectorize
+from ego.encode import make_encoder
 
 from utils_oracle_with_target import oracle_setup
 
@@ -170,3 +173,32 @@ def draw_history(graphs, oracle_func):
         history.append(parent)
     titles = ['%d) %.3f %s'%(len(history) - i,oracle_func(g),g.graph.get('type','orig').replace('Neighborhood', '')) for i,g in enumerate(history)]
     draw_graphs(history, titles)
+
+def select_unique(codes, fragments):
+    already_seen = set()
+    unique_codes=[]
+    unique_fragments=[]
+    code_counts = defaultdict(int)
+    for code, fragment in zip(codes, fragments):
+        if code not in already_seen:
+            unique_codes.append(code)
+            unique_fragments.append(fragment)
+            already_seen.add(code)
+        code_counts[code] += 1
+    return unique_codes, unique_fragments, code_counts
+
+
+def draw_decomposition_graphs(graphs, decompose_funcs, preprocessors=None, draw_graphs=None):
+    feature_size, bitmask = set_feature_size(nbits=14)
+    encoding_func = make_encoder(decompose_funcs, preprocessors=preprocessors, bitmask=bitmask, seed=1)
+    for g in graphs:
+        print('_'*80)
+        draw_graphs([g],[''])
+        codes, fragments = encoding_func(g)
+        unique_codes, unique_fragments, code_counts = select_unique(codes, fragments)
+        titles = ['%d   #%d'%(id,code_counts[id]) for id in unique_codes]
+        print('%d unique components in %d fragments'%(len(unique_codes),len(codes)))
+        if unique_fragments:
+            draw_graphs(unique_fragments, titles, n_graphs_per_line=6)
+        else:
+            print('No fragments')
