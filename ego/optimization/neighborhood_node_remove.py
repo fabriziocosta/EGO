@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 
 class NeighborhoodNodeRemove(object):
 
-    def __init__(self, n_nodes=1, n_neighbors=10):
+    def __init__(self, n_nodes=1, n_neighbors=10, part_importance_estimator=None):
+        self.part_importance_estimator = part_importance_estimator
         self.n_neighbors = n_neighbors
         self.n_nodes = n_nodes
 

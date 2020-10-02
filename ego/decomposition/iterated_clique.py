@@ -25,7 +25,7 @@ def transitive_reference_update(g1, g2):
     # if g2 has node 0 that contains nodes 2 and 5
     # and g1 has node 2 containing [1,3,5] and node 5 containing [3,8,9]
     # the node 0 in g2 should contain [1,3,5,8,9] i.e. the set union
-    g3 = nx.Graph(g2)
+    g3 = g2.copy()
     for u2 in g2.nodes():
         contained = g2.nodes[u2]['label']
         new_contained = set()
@@ -41,12 +41,12 @@ def get_components_iterated_clique_decomposition(
     gs = []
     g2 = make_abstraction_graph(components)
     if min_n_iter == 0:
-        gs.append(nx.Graph(g2))
+        gs.append(g2.copy())
     for i in range(n_iter):
         g3 = make_cliq_graph(g2, min_size=min_size, max_size=max_size)
         g4 = transitive_reference_update(g2, g3)
         if i + 1 >= min_n_iter:
-            gs.append(nx.Graph(g4))
+            gs.append(g4.copy())
         g2 = g4
     return gs
 

@@ -38,3 +38,8 @@ class FeasibilityEstimator(object):
         infeasibilities = data_mtx.dot(self.infeasibility_vec.T).A.reshape(-1).astype(bool)
         feasibilities = np.logical_not(infeasibilities)
         return feasibilities
+
+    def filter(self, graphs):
+        """filter."""
+        feasibilities = self.predict(graphs)
+        return [g for g, f in zip(graphs, feasibilities) if f]

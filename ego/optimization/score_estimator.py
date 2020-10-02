@@ -6,28 +6,145 @@ from sklearn.gaussian_process.kernels import WhiteKernel
 from sklearn.gaussian_process.kernels import RationalQuadratic
 from sklearn.gaussian_process.kernels import Matern
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.neural_network import MLPRegressor
 from sklearn.linear_model import SGDRegressor
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.model_selection import RepeatedKFold
 from scipy.stats import norm as normal_distribution
+from scipy.stats import rankdata
 import numpy as np
 from ego.vectorize import vectorize
+from ego.utils.parallel_utils import simple_parallel_map
 import logging
+from toolz import curry
 
 logger = logging.getLogger()
 
 
-class ScoreEstimator(object):
-    """ScoreEstimator."""
+def inv_sigmoid(x, sigma=1e-2):
+    """inv_sigmoid."""
+    return 2 * (1 - (1 / (1 + np.exp(-x / sigma))))
 
-    def __init__(self, decomposition_funcs=None, preprocessors=None, nbits=14, seed=1):
+
+@curry
+def ensemble_score_estimator_fit(id, estimators=None, graphs=None, targets=None):
+    """ensemble_score_estimator_fit."""
+    out = estimators[id].fit(graphs, targets)
+    return (id, out)
+
+
+@curry
+def ensemble_score_estimator_predict(id, estimators=None, graphs=None):
+    """ensemble_score_estimator_predict."""
+    out = estimators[id].predict(graphs)
+    return (id, out)
+
+
+class EnsembleScoreEstimator(object):
+    """EnsembleScoreEstimator."""
+
+    def __init__(self, estimators, execute_concurrently=False):
+        """init."""
+        self.estimators = estimators
+        self.exploration_vs_exploitation = 0
+        self.weights = None
+        self.execute_concurrently = execute_concurrently
+
+    def set_exploration_vs_exploitation(self, exploration_vs_exploitation):
+        """set_exploration_vs_exploitation."""
+        self.exploration_vs_exploitation = exploration_vs_exploitation
+        for estimator in self.estimators:
+            estimator.exploration_vs_exploitation = exploration_vs_exploitation
+
+    def fit(self, graphs, targets):
+        """fit."""
+        if self.execute_concurrently is False:
+            for estimator in self.estimators:
+                estimator.fit(graphs, targets)
+        else:
+            _ensemble_score_estimator_fit_ = ensemble_score_estimator_fit(estimators=self.estimators[:], graphs=graphs[:], targets=targets[:])
+            results = simple_parallel_map(_ensemble_score_estimator_fit_, range(len(self.estimators)))
+            self.estimators = [estimator for id, estimator in sorted(results, key=lambda x: x[0])]
+            print('e--%s' % (self.estimators))
+        return self
+
+    def _predict(self, graphs):
+        preds = []
+        if self.execute_concurrently is False:
+            preds = [estimator.predict(graphs) for estimator in self.estimators]
+        else:
+            _ensemble_score_estimator_predict_ = ensemble_score_estimator_predict(estimators=self.estimators[:], graphs=graphs[:])
+            results = simple_parallel_map(_ensemble_score_estimator_predict_, range(len(self.estimators)))
+            preds = [pred for id, pred in sorted(results, key=lambda x: x[0])]
+            print('p--%s' % (preds))
+        return preds
+
+    def predict(self, graphs):
+        """predict."""
+        preds = self._predict(graphs)
+        if self.weights is None:
+            n = len(self.estimators)
+            self.weights = np.array([1 / float(n)] * n)
+        preds = np.sum((np.array(preds).T * np.array(self.weights).T).T, axis=0).reshape(-1)
+        return preds
+
+    def predict_uncertainty(self, graphs):
+        """predict_uncertainty."""
+        preds = []
+        for estimator in self.estimators:
+            preds.append(estimator.predict_uncertainty(graphs))
+        if self.weights is None:
+            n = len(self.estimators)
+            self.weights = np.array([1 / float(n)] * n)
+        preds = np.sum((np.array(preds).T * np.array(self.weights).T).T, axis=0).reshape(-1)
+        return preds
+
+    def acquisition_score(self, graphs):
+        """acquisition_score."""
+        preds = []
+        for estimator in self.estimators:
+            preds.append(estimator.acquisition_score(graphs))
+        if self.weights is None:
+            n = len(self.estimators)
+            self.weights = np.array([1 / float(n)] * n)
+        preds = np.sum((np.array(preds).T * np.array(self.weights).T).T, axis=0).reshape(-1)
+        return preds
+
+    def error(self, graphs, targets):
+        """error."""
+        errors = []
+        for estimator in self.estimators:
+            errors.append(np.mean(estimator.error(graphs, targets), axis=0))
+        return errors
+
+    def estimate_weights(self, graphs, targets):
+        """estimate_weights."""
+        errors = np.array(self.error(graphs, targets))
+        w = rankdata(errors, method='ordinal').astype(float)
+        w = 1 / w
+        weights = w / np.sum(w)
+        return weights, errors
+
+
+class ScoreEstimatorInterface(object):
+    """ScoreEstimatorInterface."""
+
+    def __init__(self, decomposition_funcs=None, preprocessors=None, nbits=14, seed=1, exploration_vs_exploitation=0):
         """init."""
         self.decomposition_funcs = decomposition_funcs
         self.preprocessors = preprocessors
         self.nbits = nbits
         self.seed = seed
+        self.exploration_vs_exploitation = exploration_vs_exploitation
 
     def fit(self, graphs, targets):
         """fit."""
         return self
+
+    def error(self, graphs, targets):
+        """error."""
+        assert False, 'Is not implemented.'
+        return None
 
     def transform(self, graphs):
         """transform."""
@@ -48,6 +165,82 @@ class ScoreEstimator(object):
         """predict_gradient."""
         assert False, 'Is not implemented.'
         return None
+
+    def acquisition_score(self, graphs):
+        """acquisition_score."""
+        assert False, 'Is not implemented.'
+        return None
+
+
+class ScoreEstimator(ScoreEstimatorInterface):
+    """ScoreEstimator."""
+
+    def __init__(self, decomposition_funcs=None, preprocessors=None, nbits=14, seed=1, exploration_vs_exploitation=0):
+        """init."""
+        self.decomposition_funcs = decomposition_funcs
+        self.preprocessors = preprocessors
+        self.nbits = nbits
+        self.seed = seed
+        self.exploration_vs_exploitation = exploration_vs_exploitation
+        self.estimators = []
+
+    def transform(self, graphs):
+        """transform."""
+        data_mtx = vectorize(graphs, self.decomposition_funcs,
+                             self.preprocessors, self.nbits, self.seed)
+        return data_mtx
+
+    def fit(self, graphs, targets):
+        """fit."""
+        y = np.array(targets)
+        data_mtx = self.transform(graphs)
+        size = data_mtx.shape[0]
+        n_estimators = len(self.estimators)
+        n_splits = 5
+        n_repeats = n_estimators // n_splits
+        ids = [tr for tr, ts in RepeatedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=2652124).split(range(size))]
+        for i, idx in zip(range(n_estimators), ids):
+            # idx = np.random.randint(0, size, size)
+            x_train = data_mtx[idx]
+            y_train = y[idx]
+            self.estimators[i] = self.estimators[i].fit(x_train, y_train)
+        return self
+
+    def _predict(self, graphs):
+        """predict."""
+        data_mtx = self.transform(graphs)
+        preds = [est.predict(data_mtx) for est in self.estimators]
+        preds = np.array(preds)
+        return preds
+
+    def predict(self, graphs):
+        """predict."""
+        preds = self._predict(graphs)
+        mu = np.mean(preds, axis=0)
+        return mu
+
+    def acquisition_score(self, graphs):
+        """acquisition_score."""
+        preds = self._predict(graphs)
+        mu = np.mean(preds, axis=0)
+        sigma = np.std(preds, axis=0)
+        outs = mu + self.exploration_vs_exploitation * sigma
+        return outs
+
+    def predict_uncertainty(self, graphs):
+        """predict_uncertainty."""
+        preds = self._predict(graphs)
+        sigma = np.std(preds, axis=0)
+        return sigma
+
+    def error(self, graphs, targets):
+        """error."""
+        preds = self._predict(graphs)
+        mu = np.mean(preds, axis=0)
+        sigma = np.std(preds, axis=0)
+        err = np.power(mu - targets, 2) + np.power(sigma, 2)
+        err + np.mean(err)
+        return err
 
 
 class ExpectedImprovementEstimator(object):
@@ -156,12 +349,6 @@ class GraphUpperConfidenceBoundEstimator(ScoreEstimator):
         self.gram_mtx_inv = gram_mtx.I
         return self
 
-    def transform(self, graphs):
-        """transform."""
-        data_mtx = vectorize(graphs, self.decomposition_funcs,
-                             self.preprocessors, self.nbits, self.seed)
-        return data_mtx
-
     def predict_mean_and_std(self, graphs):
         """predict_mean_and_std."""
         mus = []
@@ -180,13 +367,25 @@ class GraphUpperConfidenceBoundEstimator(ScoreEstimator):
     def predict(self, graphs):
         """predict_mean."""
         mu, sigma = self.predict_mean_and_std(graphs)
-        outs = mu + self.exploration_vs_exploitation * sigma
-        return outs
+        return mu
 
     def predict_uncertainty(self, graphs):
         """predict_uncertainty."""
         mu, sigma = self.predict_mean_and_std(graphs)
         return sigma
+
+    def acquisition_score(self, graphs):
+        """acquisition_score."""
+        mu, sigma = self.predict_mean_and_std(graphs)
+        outs = mu + self.exploration_vs_exploitation * sigma
+        return outs
+
+    def error(self, graphs, targets):
+        """error."""
+        mu, sigma = self.predict_mean_and_std(graphs)
+        err = np.power(mu - targets, 2) + np.power(sigma, 2)
+        err + np.mean(err)
+        return err
 
 
 class GraphExpectedImprovementEstimator(ScoreEstimator):
@@ -219,12 +418,6 @@ class GraphExpectedImprovementEstimator(ScoreEstimator):
         self.gram_mtx_inv = gram_mtx.I
         return self
 
-    def transform(self, graphs):
-        """transform."""
-        data_mtx = vectorize(graphs, self.decomposition_funcs,
-                             self.preprocessors, self.nbits, self.seed)
-        return data_mtx
-
     def predict_mean_and_std(self, graphs):
         """predict_mean_and_std."""
         mus = []
@@ -240,13 +433,13 @@ class GraphExpectedImprovementEstimator(ScoreEstimator):
         mu, sigma = np.array(mus), np.array(sigmas)
         return mu, sigma
 
-    def predict_mean(self, graphs):
-        """predict_mean."""
+    def predict(self, graphs):
+        """predict."""
         mu, sigma = self.predict_mean_and_std(graphs)
         return mu
 
-    def predict(self, graphs):
-        """predict_expected_improvement."""
+    def acquisition_score(self, graphs):
+        """acquisition_score."""
         mu, sigma = self.predict_mean_and_std(graphs)
         with np.errstate(divide='ignore'):
             z = (mu - self.loss_optimum) / sigma
@@ -264,8 +457,15 @@ class GraphExpectedImprovementEstimator(ScoreEstimator):
         mu, sigma = self.predict_mean_and_std(graphs)
         return sigma
 
+    def error(self, graphs, targets):
+        """error."""
+        mu, sigma = self.predict_mean_and_std(graphs)
+        err = np.power(mu - targets, 2) + np.power(sigma, 2)
+        err + np.mean(err)
+        return err
 
-class GraphRandomForestScoreEstimator(object):
+
+class GraphRandomForestScoreEstimator(ScoreEstimator):
     """ScoreEstimator."""
 
     def __init__(self, n_estimators=100, exploration_vs_exploitation=0, decomposition_funcs=None, preprocessors=None, nbits=14, seed=1):
@@ -283,12 +483,6 @@ class GraphRandomForestScoreEstimator(object):
         self.estimator = self.estimator.fit(self.data_mtx, targets)
         return self
 
-    def transform(self, graphs):
-        """transform."""
-        data_mtx = vectorize(graphs, self.decomposition_funcs,
-                             self.preprocessors, self.nbits, self.seed)
-        return data_mtx
-
     def _predict(self, graphs):
         test_data_mtx = self.transform(graphs)
         preds = []
@@ -299,13 +493,7 @@ class GraphRandomForestScoreEstimator(object):
 
     def predict(self, graphs):
         """predict."""
-        if self.exploration_vs_exploitation == 0:
-            outs = self.estimator.predict(self.transform(graphs))
-        else:
-            preds = self._predict(graphs)
-            mu = np.mean(preds, axis=0)
-            sigma = np.std(preds, axis=0)
-            outs = mu + self.exploration_vs_exploitation * sigma
+        outs = self.estimator.predict(self.transform(graphs))
         return outs
 
     def predict_uncertainty(self, graphs):
@@ -319,7 +507,7 @@ class GraphRandomForestScoreEstimator(object):
         return sigma
 
 
-class GraphLinearScoreEstimator(object):
+class GraphLinearScoreEstimator(ScoreEstimator):
     """ScoreEstimator."""
 
     def __init__(self, n_estimators=100, exploration_vs_exploitation=0, decomposition_funcs=None, preprocessors=None, nbits=14, seed=1):
@@ -332,44 +520,34 @@ class GraphLinearScoreEstimator(object):
         self.estimators = [SGDRegressor(penalty='elasticnet')
                            for _ in range(n_estimators)]
 
-    def fit(self, graphs, targets):
-        """fit."""
-        y = np.array(targets)
-        data_mtx = self.transform(graphs)
-        size = data_mtx.shape[0]
-        for i in range(len(self.estimators)):
-            idx = np.random.randint(0, size, size)
-            x_train = data_mtx[idx]
-            y_train = y[idx]
-            self.estimators[i] = self.estimators[i].fit(x_train, y_train)
-        return self
+    def predict_gradient(self, graphs):
+        """predict_gradient."""
+        coefs = [est.coef_ for est in self.estimators]
+        coefs = np.array(coefs)
+        coef = np.mean(coefs, axis=0)
+        return coef
 
-    def transform(self, graphs):
-        """transform."""
-        data_mtx = vectorize(graphs, self.decomposition_funcs,
-                             self.preprocessors, self.nbits, self.seed)
-        return data_mtx
 
-    def _predict(self, graphs):
-        """predict."""
-        data_mtx = self.transform(graphs)
-        preds = [est.predict(data_mtx) for est in self.estimators]
-        preds = np.array(preds)
-        return preds
+class GraphNeuralNetworkScoreEstimator(ScoreEstimator):
+    """GraphNeuralNetworkScoreEstimator."""
 
-    def predict(self, graphs):
-        """predict."""
-        preds = self._predict(graphs)
-        mu = np.mean(preds, axis=0)
-        sigma = np.std(preds, axis=0)
-        outs = mu + self.exploration_vs_exploitation * sigma
-        return outs
-
-    def predict_uncertainty(self, graphs):
-        """predict_uncertainty."""
-        preds = self._predict(graphs)
-        sigma = np.std(preds, axis=0)
-        return sigma
+    def __init__(self,
+                 hidden_layer_sizes=[100, 50],
+                 alpha=0.0001,
+                 n_estimators=100,
+                 exploration_vs_exploitation=0,
+                 decomposition_funcs=None,
+                 preprocessors=None,
+                 nbits=14,
+                 seed=1):
+        """init."""
+        self.exploration_vs_exploitation = exploration_vs_exploitation
+        self.decomposition_funcs = decomposition_funcs
+        self.preprocessors = preprocessors
+        self.nbits = nbits
+        self.seed = seed
+        self.estimators = [MLPRegressor(hidden_layer_sizes=hidden_layer_sizes, alpha=alpha)
+                           for _ in range(n_estimators)]
 
     def predict_gradient(self, graphs):
         """predict_gradient."""
@@ -377,3 +555,23 @@ class GraphLinearScoreEstimator(object):
         coefs = np.array(coefs)
         coef = np.mean(coefs, axis=0)
         return coef
+
+
+class GraphNearestNeighborScoreEstimator(ScoreEstimator):
+    """GraphNearestNeighborScoreEstimator."""
+
+    def __init__(self,
+                 n_neighbors=5,
+                 n_estimators=100,
+                 exploration_vs_exploitation=0,
+                 decomposition_funcs=None,
+                 preprocessors=None,
+                 nbits=14,
+                 seed=1):
+        """init."""
+        self.exploration_vs_exploitation = exploration_vs_exploitation
+        self.decomposition_funcs = decomposition_funcs
+        self.preprocessors = preprocessors
+        self.nbits = nbits
+        self.seed = seed
+        self.estimators = [KNeighborsRegressor(n_neighbors=n_neighbors) for _ in range(n_estimators)]

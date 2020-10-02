@@ -15,19 +15,21 @@ def path_decomposition(g, length=None, min_len=1, max_len=None):
     edge_components = []
     for u in g.nodes():
         for v in g.nodes():
-            if v > u:
-                for path in nx.all_shortest_paths(
-                        g, source=u, target=v):
+            try:
+                for path in nx.all_shortest_paths(g, source=u, target=v):
                     edge_component = set()
                     if len(path) >= min_len + 1 and len(path) <= max_len + 1:
                         for i, u in enumerate(path[:-1]):
                             w = path[i + 1]
-                            if u < w:
-                                edge_component.add((u, w))
-                            else:
-                                edge_component.add((w, u))
+                            edge_component.add((u, w))
+                            #if u < w:
+                            #    edge_component.add((u, w))
+                            #else:
+                            #    edge_component.add((w, u))
                     if edge_component:
                         edge_components.append(tuple(sorted(edge_component)))
+            except Exception:
+                pass
     return list(set(edge_components))
 
 

@@ -31,7 +31,10 @@ def edge_complement(g, ebunch):
 
 
 def edge_subgraph(g, ebunch):
-    g2 = nx.Graph()
+    if nx.is_directed(g):
+        g2 = nx.DiGraph()
+    else:
+        g2 = nx.Graph()
     g2.add_nodes_from(g.nodes())
     for u, v in ebunch:
         g2.add_edge(u, v)
@@ -41,7 +44,10 @@ def edge_subgraph(g, ebunch):
 
 def edge_complement_subgraph(g, ebunch):
     """Induce graph from edges that are not in ebunch."""
-    g2 = nx.Graph()
+    if nx.is_directed(g):
+        g2 = nx.DiGraph()
+    else:
+        g2 = nx.Graph()
     g2.add_nodes_from(g.nodes())
     for e in g.edges():
         if e not in ebunch:

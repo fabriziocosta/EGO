@@ -4,6 +4,9 @@ from ego.encode import make_encoder
 
 from ego.decompose import compose, args, do_decompose
 
+# node relabeling
+from ego.decomposition.node_relabel import decompose_node_relabel_degree, decompose_node_relabel_null
+
 # order 0
 from ego.decomposition.identity import decompose_identity
 from ego.decomposition.nodes_edges import decompose_nodes_and_edges, decompose_nodes, decompose_edges
@@ -12,7 +15,7 @@ from ego.decomposition.paired_neighborhoods import decompose_paired_neighborhood
 from ego.decomposition.cycle_basis import decompose_cycles_and_non_cycles, decompose_non_cycles, decompose_cycles
 from ego.decomposition.clique import decompose_clique_and_non_clique, decompose_clique, decompose_non_clique
 from ego.decomposition.graphlet import decompose_graphlet
-#from ego.decomposition.communities import decompose_communities
+from ego.decomposition.communities import decompose_communities
 # node-edge filter based
 from ego.decomposition.degree import decompose_degree_and_non_degree, decompose_degree, decompose_non_degree
 from ego.decomposition.centrality import decompose_central_and_non_central, decompose_central, decompose_non_central
@@ -25,6 +28,8 @@ from ego.decomposition.dilatate import decompose_dilatate
 from ego.decomposition.union import decompose_all_union
 from ego.decomposition.join import decompose_node_join, decompose_edge_join
 from ego.decomposition.pair import decompose_pair
+from ego.decomposition.frequency import decompose_frequency
+from ego.decomposition.relabel import decompose_relabel_estimator, decompose_relabel_distinct_node_labels, decompose_relabel_max_node_degree, decompose_relabel_node_size, decompose_relabel_node_label_frequency, decompose_relabel_node_degree_frequency
 
 from ego.decomposition.iterated_clique import decompose_iterated_clique
 from ego.abstraction.abstract import decompose_abstract, decompose_abstract_and_non_abstract

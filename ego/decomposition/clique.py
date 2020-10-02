@@ -8,9 +8,13 @@ from ego.component import GraphComponent, serialize, get_subgraphs_from_node_com
 
 
 @curry
-def clique_and_non_clique(graph, size=2):
+def clique_and_non_clique(graph, size=None, min_size=2, max_size=2):
+    if size is not None:
+        min_size = size
+        max_size = size
+    
     cliques = nx.enumerate_all_cliques(graph)
-    cliques = list(filter(lambda x: len(x) == size, cliques))
+    cliques = list(filter(lambda x: min_size <= len(x) <= max_size, cliques))
     # induce graph from cliques and return as components
     # the connected components
     nbunch = set()
@@ -29,35 +33,35 @@ def clique_and_non_clique(graph, size=2):
 
 
 @curry
-def clique_decomposition(graph, size=2):
+def clique_decomposition(graph, size=None, min_size=2, max_size=2):
     res = clique_and_non_clique(
-        graph, size=size)
+        graph, size=size, min_size=min_size, max_size=max_size)
     deg_components, non_deg_components = res
     return deg_components
 
 
 @curry
-def non_clique_decomposition(graph, size=2):
+def non_clique_decomposition(graph, size=None, min_size=2, max_size=2):
     res = clique_and_non_clique(
-        graph, size=size)
+        graph, size=size, min_size=min_size, max_size=max_size)
     deg_components, non_deg_components = res
     return non_deg_components
 
 
 @curry
-def clique_non_clique_decomposition(graph, size=2):
+def clique_non_clique_decomposition(graph, size=None, min_size=2, max_size=2):
     res = clique_and_non_clique(
-        graph, size=size)
+        graph, size=size, min_size=min_size, max_size=max_size)
     deg_components, non_deg_components = res
     return deg_components + non_deg_components
 
 
 @curry
-def decompose_clique(graph_component, size=2):
+def decompose_clique(graph_component, size=None, min_size=2, max_size=2):
     new_subgraphs_list = []
     new_signatures_list = []
     for subgraph, signature in zip(graph_component.subgraphs, graph_component.signatures):
-        components = clique_decomposition(subgraph, size=size)
+        components = clique_decomposition(subgraph, size=size, min_size=min_size, max_size=max_size)
         new_subgraphs = get_subgraphs_from_node_components(graph_component.graph, components)
         new_signature = serialize(['clique', size], signature)
         new_signatures = [new_signature] * len(new_subgraphs)
@@ -72,11 +76,11 @@ def decompose_clique(graph_component, size=2):
 
 
 @curry
-def decompose_non_clique(graph_component, size=2):
+def decompose_non_clique(graph_component, size=None, min_size=2, max_size=2):
     new_subgraphs_list = []
     new_signatures_list = []
     for subgraph, signature in zip(graph_component.subgraphs, graph_component.signatures):
-        components = non_clique_decomposition(subgraph, size=size)
+        components = non_clique_decomposition(subgraph, size=size, min_size=min_size, max_size=max_size)
         new_subgraphs = get_subgraphs_from_node_components(graph_component.graph, components)
         new_signature = serialize(['non_clique', size], signature)
         new_signatures = [new_signature] * len(new_subgraphs)
@@ -91,11 +95,11 @@ def decompose_non_clique(graph_component, size=2):
 
 
 @curry
-def decompose_clique_and_non_clique(graph_component, size=2):
+def decompose_clique_and_non_clique(graph_component, size=None, min_size=2, max_size=2):
     new_subgraphs_list = []
     new_signatures_list = []
     for subgraph, signature in zip(graph_component.subgraphs, graph_component.signatures):
-        components = clique_non_clique_decomposition(subgraph, size=size)
+        components = clique_non_clique_decomposition(subgraph, size=size, min_size=min_size, max_size=max_size)
         new_subgraphs = get_subgraphs_from_node_components(graph_component.graph, components)
         new_signature = serialize(['clique_and_non_clique', size], signature)
         new_signatures = [new_signature] * len(new_subgraphs)

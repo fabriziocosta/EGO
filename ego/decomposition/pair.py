@@ -69,25 +69,24 @@ def pair_decomposition(graph, subgraphs, distance=1):
 
         if len(g_dist_set) > 0:
             for j, m in enumerate(subgraphs):
-                if j > i:
-                    m_node_set = set(m.nodes())
+                m_node_set = set(m.nodes())
 
-                    # if there is at least one node in m that is at the desired
-                    # distance and if there is no node in m that has a smaller
-                    # distance then make a component from the union of the nodes
-                    # for each node in g consider the set A of all nodes at
-                    # distance less than max and the set B of all nodes at distance
-                    # equal to max
-                    # consider the intersection of A with nodes in m:
-                    # this must be empty
-                    # consider the intersection of B with nodes in m:
-                    # this must be not empty
-                    near_intr_size = len(g_near_set.intersection(m_node_set))
-                    dist_intr_size = len(g_dist_set.intersection(m_node_set))
-                    condition = near_intr_size == 0 and dist_intr_size != 0
-                    if condition:
-                        component = g_node_set.union(m_node_set)
-                        components.append(component)
+                # if there is at least one node in m that is at the desired
+                # distance and if there is no node in m that has a smaller
+                # distance then make a component from the union of the nodes
+                # for each node in g consider the set A of all nodes at
+                # distance less than max and the set B of all nodes at distance
+                # equal to max
+                # consider the intersection of A with nodes in m:
+                # this must be empty
+                # consider the intersection of B with nodes in m:
+                # this must be not empty
+                near_intr_size = len(g_near_set.intersection(m_node_set))
+                dist_intr_size = len(g_dist_set.intersection(m_node_set))
+                condition = near_intr_size == 0 and dist_intr_size != 0
+                if condition:
+                    component = g_node_set.union(m_node_set)
+                    components.append(component)
     return components
 
 

@@ -23,9 +23,9 @@ def serialize(iterable, signature1=None, signature2=None, signature3=None):
     if signature1:
         seq += '(' + signature1 + ')'
     if signature2:
-        seq += '(' + signature2 + ')'
+        seq += ',2:(' + signature2 + ')'
     if signature3:
-        seq += '(' + signature3 + ')'
+        seq += ',3:(' + signature3 + ')'
     return seq
 
 GraphComponent = collections.namedtuple(
@@ -107,7 +107,7 @@ def transitive_reference_update(g1, g2):
     # if g2 has node 0 that contains nodes 2 and 5
     # and g1 has node 2 containing [1,3,5] and node 5 containing [3,8,9]
     # the node 0 in g2 should contain [1,3,5,8,9] i.e. the set union
-    g3 = nx.Graph(g2)
+    g3 = g2.copy()
     for u2 in g2.nodes():
         contained = g2.nodes[u2]['label']
         new_contained = set()
@@ -140,7 +140,10 @@ def edge_to_node_components(edge_components):
 
 
 def edge_subgraph(graph, edge_component):
-    subgraph = nx.Graph()
+    if nx.is_directed(graph):
+        subgraph = nx.DiGraph()
+    else:
+        subgraph = nx.Graph()
     for u in edge_to_node_component(edge_component):
         subgraph.add_node(u)
         subgraph.nodes[u].update(graph.nodes[u])

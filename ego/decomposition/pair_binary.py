@@ -96,11 +96,12 @@ def decompose_pair_binary(graph_component_first, graph_component_second, distanc
                         component = g_node_set.union(m_node_set)
                     else:
                         component = g_node_set
-                    new_subgraph = get_subgraphs_from_node_components(
-                        graph_component_first.graph, [component])
-                    new_subgraphs_list += new_subgraph
-                    new_signature = serialize(
-                        ['pair_binary', distance, keep_second_component], signature_g, signature_m)
+                    new_subgraph = get_subgraphs_from_node_components(graph_component_first.graph, [component])[0]
+                    from eden.display import line_serialize_graph
+                    #print(line_serialize_graph(new_subgraph))
+                    new_subgraphs_list.append(new_subgraph)
+                    new_signature = serialize(['pair_binary', distance, keep_second_component], signature_g, signature_m)
+                    #print(new_signature)
                     new_signatures_list += new_signature
 
     gc = GraphComponent(

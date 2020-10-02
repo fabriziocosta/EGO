@@ -141,6 +141,9 @@ def get_nodes_codes(graph, fragmenter_func, bitmask=_bitmask_):
     """Compute a list of hash codes for each node."""
     codes, fragments = encode_graph(graph, fragmenter_func, bitmask)
     node_dict = defaultdict(list)
+    # add a unit code to each node to acknowledge its existence 
+    for u in graph.nodes():
+        node_dict[u].append(1)
     for fragment_code, fragment in zip(codes, fragments):
         fragment_nodes_dict = get_nodes_hash(fragment)
         for u in fragment_nodes_dict:
@@ -159,6 +162,17 @@ def node_encode_graph(graph, fragmenter_func, bitmask=_bitmask_):
         encoding_codes += codes
     return encoding_codes, node_ids
 
+def make_fragmenter_func(decompose_func, preprocessor=None):
+    fragmenter_func = compose(
+        get_subgraphs_from_graph_component,
+        decompose_func,
+        convert)
+    if preprocessor:
+        fragmenter_func = compose(
+            fragmenter_func,
+            preprocessor)
+    return fragmenter_func
+
 
 @curry
 def encode(fragments, bitmask=None, seed=1):
@@ -167,15 +181,10 @@ def encode(fragments, bitmask=None, seed=1):
 
 
 def _make_encoder(decompose_func, preprocessor=None, bitmask=None, seed=1):
+    fragmenter_func = make_fragmenter_func(decompose_func, preprocessor)
     encoding_func = compose(
         encode(bitmask=bitmask, seed=seed),
-        get_subgraphs_from_graph_component,
-        decompose_func,
-        convert)
-    if preprocessor:
-        encoding_func = compose(
-            encoding_func,
-            preprocessor)
+        fragmenter_func)
     return encoding_func
 
 

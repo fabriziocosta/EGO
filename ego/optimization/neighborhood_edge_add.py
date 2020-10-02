@@ -9,11 +9,13 @@ logger = logging.getLogger(__name__)
 
 class NeighborhoodEdgeAdd(object):
 
-    def __init__(self, n_edges=1, n_neighbors=10):
+    def __init__(self, n_edges=1, n_neighbors=None, part_importance_estimator=None):
+        self.part_importance_estimator = part_importance_estimator
         self.n_neighbors = n_neighbors
         self.n_edges = n_edges
 
     def set(self, labels, probabilities=None):
+        """set."""
         if probabilities is None:
             probabilities = [1.0 / len(labels)] * len(labels)
         self.labels = labels
@@ -50,11 +52,44 @@ class NeighborhoodEdgeAdd(object):
             neigh_set = set(g.neighbors(u))
             neigh_set.add(u)
             candidate_endpoints = list(node_set.difference(neigh_set))
-            v = np.random.choice(candidate_endpoints, 1)[0]
-            g.add_edge(u, v, label=l)
+            if len(candidate_endpoints) > 0:
+                v = np.random.choice(candidate_endpoints, 1)[0]
+                g.add_edge(u, v, label=l)
         return g
 
     def neighbors(self, graph):
+        """neighbors."""
+        if self.n_neighbors is None:
+            return self.all_neighbors(graph)
+        else:
+            return self.sample_neighbors(graph)
+
+    def all_neighbors(self, graph):
+        """all_neighbors."""
+        graphs = [graph]
+
+        for i in range(self.n_edges):
+            next_graphs = []
+            for g in graphs:
+                next_graphs.extend(self._all_neighbors(g))
+            graphs = next_graphs[:]
+        return graphs
+
+    def _all_neighbors(self, graph):
+        graphs = []
+        nodes = list(graph.nodes())
+        for i in range(len(nodes) - 1):
+            u = graph.nodes[i]
+            for j in range(i + 1, len(nodes)):
+                v = graph.nodes[j]
+                if graph.has_edge(u, v) is False:
+                    for l in self.labels:
+                        g = graph.copy()
+                        g.add_edge(u, v, label=l)
+                        graphs.append(g)
+        return graphs
+
+    def sample_neighbors(self, graph):
         """neighbors."""
         neighs = [self._add(graph, self.n_edges, self.labels, self.probabilities)
                   for i in range(self.n_neighbors)]

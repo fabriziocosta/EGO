@@ -10,10 +10,11 @@ def run_dill_encoded(what):
     Use dill as replacement for pickle to enable multiprocessing on instance methods
     """
     fun, args = dill.loads(what)
-    return fun(*args)
+    out = fun(*args)
+    return out
 
 
-def _apply_async(pool, fun, args, callback):
+def _apply_async(pool, fun, args=None, callback=None):
     """
     Wrapper around apply_async() from multiprocessing, to use dill instead of pickle.
     This is a workaround to enable multiprocessing of classes.
@@ -38,3 +39,21 @@ def parallel_map(func, iterable):
     pool.join()
     results = [item for i, item in sorted(res, key=lambda x:x[0])]
     return results
+
+
+def simple_parallel_map(func, iterable):
+    res = []
+    it_list = list(iterable)
+
+    def my_callback(result):
+        res.append(result)
+        if len(res) == len(it_list):
+            pool.terminate()
+
+    pool = Pool()
+    for item in it_list:
+        _apply_async(pool, func, args=(item, ), callback=my_callback)
+
+    pool.close()
+    pool.join()
+    return res

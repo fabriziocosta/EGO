@@ -21,7 +21,11 @@ from ego.vectorize import hash_graph
 from ego.vectorize import set_feature_size, vectorize
 from ego.encode import make_encoder
 
-from utils_oracle_with_target import oracle_setup
+from utils_oracle_with_target import oracle_setup as oracle_setup_target
+from utils_oracle_from_dataset import oracle_setup as oracle_setup_dataset
+from eden_chem.io.rdkitutils import nx_to_inchi
+from eden_chem.io.rdkitutils import nx_to_smi
+from datetime import datetime
 
 
 
@@ -41,6 +45,37 @@ colormap = 'tab20c'
 
 #assay_ids = ['624466','492992','463230','651741','743219','588350','492952','624249','463213','2631','651610']
 
+def rank_and_persist_molecules(graphs, scores, name='', plot=True):
+    inchis = nx_to_inchi(graphs)
+    smis = nx_to_smi(graphs)
+    ids = sorted(range(len(scores)), key=lambda i:scores[i], reverse=True)
+    
+    sorted_graphs = [graphs[id] for id in ids] 
+    sorted_scores = [scores[id] for id in ids]
+    sorted_smis = [smis[id] for id in ids]
+    sorted_inchis = [inchis[id] for id in ids]
+    
+    dt_string = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+    fname = '%s_constructed_%s.csv'%(name, dt_string)
+    # save
+    non_redundant_graphs = []
+    previous_m = None
+    i = 0
+    with open(fname,'w') as file:
+        txt = ('Rank\tScore\tCanonical Smiles\tInChI\tOrigin\n')
+        file.write(txt)
+        for s,m,inc,g in zip(sorted_scores, sorted_smis, sorted_inchis, sorted_graphs):
+            if m != previous_m:
+                txt = '%d\t%.3f\t%s\t%s\t%s'%(i+1, s, m, inc, g.graph.get('name',None))
+                non_redundant_graphs.append(g)
+                file.write(txt)
+                if i<20:
+                    print(txt)
+                i = i+1
+            previous_m = m
+    # plot
+    if plot:
+        draw_graphs(non_redundant_graphs[:14])
 
 def load_PUBCHEM_data(assay_id, max_size=20):
     configure_logging(logger, verbosity=2)
@@ -98,23 +133,8 @@ def display_ktop_graphs(graphs, oracle_func, n_max=6):
     ids = np.argsort(scores)[-n_max:]
     best_graphs = [graphs[id] for id in ids]
     best_scores = [scores[id] for id in ids]
-    distinct_best_scores = []
-    distinct_best_graphs = []
-    prev_score = None
-    counter = 0
-    distinct_counters = []
-    for best_graph, best_score in zip(best_graphs, best_scores):
-        if prev_score != best_score:
-            distinct_best_graphs.append(best_graph)
-            distinct_best_scores.append(best_score)
-            distinct_counters.append(counter)
-            counter = 0
-        else:
-            counter += 1
-        prev_score = best_score
-    titles = ['%.6f x %d' % (distinct_best_scores[i], distinct_counters[i + 1] + 1) for i in range(len(distinct_best_scores) - 1)]
-    titles += ['%.6f x %d' % (best_score, counter + 1)]
-    draw_graphs(distinct_best_graphs, titles=titles, n_graphs_per_line=6)
+    titles = ['%.3f' % best_score for best_score in best_scores]
+    draw_graphs(best_graphs, titles=titles, n_graphs_per_line=6)
 
 
 def remove_duplicates(graphs):
@@ -126,22 +146,29 @@ def remove_duplicates(graphs):
 
 def target_quality(target_graph, graphs, max_score_threshold, min_score_threshold):
     # the quality of the target is measured as the fraction of graphs that are in a desired range of similarity
-    oracle_func = oracle_setup(target_graph, random_noise=0.0)
+    oracle_func = oracle_setup_target(target_graph, random_noise=0.0)
     sel_graphs = [g for g in graphs if min_score_threshold < oracle_func(g) < max_score_threshold]
     quality_score = len(sel_graphs) / float(len(graphs))
     print('%.3f   ' % (quality_score))
     return quality_score
 
 
-def build_chemical_experiment(assay_id, n_init_instances, n_domain_instances, max_score_threshold, n_targets):
+def build_chemical_experiment(assay_id, n_init_instances, n_domain_instances, max_score_threshold, n_targets=None, ratio_class_to_target=.9):
     pos_graphs, neg_graphs = load_PUBCHEM_data(assay_id, max_size=n_domain_instances)
+    pos_graphs, neg_graphs = remove_duplicates(pos_graphs), remove_duplicates(neg_graphs) 
     domain_graphs = pos_graphs + neg_graphs
-    domain_graphs = remove_duplicates(domain_graphs)
     random.shuffle(domain_graphs)
 
-    print('Selecting a good cluster of molecular graphs in %d attempts. This might take a while...'%n_targets)
-    target_graph = max(domain_graphs[:n_targets], key=lambda g: target_quality(g, domain_graphs, max_score_threshold, max_score_threshold / 1.5))
-    oracle_func = oracle_setup(target_graph, random_noise=0.0)
+    if n_targets is None:
+        oracle_func, target_graph = oracle_setup_dataset(
+            pos_graphs, 
+            neg_graphs, 
+            ratio_class_to_target=ratio_class_to_target, 
+            random_noise=0.0)
+    else:
+        print('Selecting a good cluster of molecular graphs in %d attempts. This might take a while...'%n_targets)
+        target_graph = max(domain_graphs[:n_targets], key=lambda g: target_quality(g, domain_graphs, max_score_threshold, max_score_threshold / 1.5))
+        oracle_func = oracle_setup_target(target_graph, random_noise=0.0)
 
     domain_graphs = [g for g in domain_graphs if oracle_func(g) < max_score_threshold]
     sorted_graphs = sorted(domain_graphs, key=lambda g: oracle_func(g), reverse=True)

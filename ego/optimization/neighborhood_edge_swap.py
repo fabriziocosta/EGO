@@ -9,11 +9,12 @@ logger = logging.getLogger(__name__)
 
 class NeighborhoodEdgeSwap(object):
 
-    def __init__(self, n_edges=1, n_neighbors=10):
+    def __init__(self, n_edges=1, n_neighbors=None, part_importance_estimator=None):
+        self.part_importance_estimator = part_importance_estimator
         self.n_edges = n_edges
         self.n_neighbors = n_neighbors
 
-    def fit(self, graphs, targets):
+    def fit(self, graphs, targets=None):
         return self
 
     def neighbors(self, graph):

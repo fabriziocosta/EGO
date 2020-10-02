@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 
 class NeighborhoodEdgeMove(object):
 
-    def __init__(self, n_edges=1, n_neighbors=10):
+    def __init__(self, n_edges=1, n_neighbors=10, part_importance_estimator=None):
+        self.part_importance_estimator = part_importance_estimator
         self.n_neighbors = n_neighbors
         self.n_edges = n_edges
 
@@ -61,14 +62,16 @@ class NeighborhoodEdgeMove(object):
         node_ids = node_ids[:n_edges]
         for u in node_ids:
             neigh_list = list(g.neighbors(u))
-            v = np.random.choice(neigh_list, 1)[0]
-            l = g.edges[u, v]['label']
-            neigh_set = set(neigh_list)
-            neigh_set.add(u)
-            candidate_endpoints = list(node_set.difference(neigh_set))
-            new_v = np.random.choice(candidate_endpoints, 1)[0]
-            g.add_edge(u, new_v, label=l)
-            g.remove_edge(u, v)
+            if len(neigh_list) > 0:
+                v = np.random.choice(neigh_list, 1)[0]
+                l = g.edges[u, v]['label']
+                neigh_set = set(neigh_list)
+                neigh_set.add(u)
+                candidate_endpoints = list(node_set.difference(neigh_set))
+                if len(candidate_endpoints) > 0:
+                    new_v = np.random.choice(candidate_endpoints, 1)[0]
+                    g.add_edge(u, new_v, label=l)
+                    g.remove_edge(u, v)
         max_cc = max(nx.connected_components(g), key=lambda x: len(x))
         g = nx.subgraph(g, max_cc).copy()
         return g

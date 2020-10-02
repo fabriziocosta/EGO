@@ -11,11 +11,12 @@ _bitmask_ = 4294967295
 
 def convert_dict_to_sparse_matrix(feature_rows, feature_size):
     if len(feature_rows) == 0:
-        raise Exception('ERROR: something went wrong, empty features.')
+        # case of empty feature set for all instances
+        return csr_matrix((1, feature_size))
     data, row, col = [], [], []
     for i, feature_row in enumerate(feature_rows):
         if len(feature_row) == 0:
-                # case of empty feature set for a specific instance
+            # case of empty feature set for a specific instance
             row.append(i)
             col.append(0)
             data.append(0)
@@ -37,7 +38,7 @@ def to_dict(codes, fragments):
     return row
 
 
-def set_feature_size(nbits=10):
+def set_feature_size(nbits=14):
     bitmask = pow(2, nbits) - 1
     feature_size = bitmask + 2
     return feature_size, bitmask
@@ -95,7 +96,7 @@ def get_feature_dict(graphs, decomposition_funcs=None, preprocessors=None, nbits
         return feature_dict, feature_counts_dict
     else:
         return feature_dict
-
+        
 
 def get_feature_set(graphs, decomposition_funcs=None, preprocessors=None, nbits=14, seed=1):
     feature_size, bitmask = set_feature_size(nbits=nbits)

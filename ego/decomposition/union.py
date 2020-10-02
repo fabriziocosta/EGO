@@ -9,7 +9,7 @@ from ego.component import GraphComponent, serialize, get_subgraphs_from_node_com
 def decompose_all_union(graph_component):
     subgraphs = graph_component.subgraphs
     # Warning: as it is hard to keep track of which components are
-    # finally united, we simply mangle all singnatures into one
+    # finally united, we simply mangle all signatures into one
     # as the sorted union of all signatures
     new_signature = '_'.join(sorted(set(graph_component.signatures)))
     new_subgraphs = []

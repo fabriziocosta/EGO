@@ -19,18 +19,15 @@ def ego_oracle_setup(target_graph, df=None, preproc=None):
 
 
 def oracle_setup(target_graph, random_noise=0.05, include_structural_similarity=True):
-    df = do_decompose(decompose_cycles_and_non_cycles, decompose_neighborhood(radius=2))
+    df = do_decompose(decompose_cycles_and_non_cycles, decompose_neighborhood(radius=2), do_decompose(decompose_cycles, compose_function=decompose_edge_join))
     preproc = preprocess_abstract_label(node_label='C', edge_label='1')
     structural_oracle_func = ego_oracle_setup(target_graph, df, preproc)
 
     df = do_decompose(decompose_nodes_and_edges)
-    preproc = None
-    compositional_oracle_func = ego_oracle_setup(target_graph, df, preproc)
+    compositional_oracle_func = ego_oracle_setup(target_graph, df, None)
 
-    df = do_decompose(decompose_path(length=2), decompose_neighborhood)
-    preproc = None
-    comp_and_struct_oracle_func = ego_oracle_setup(target_graph, df, preproc)
-
+    df = do_decompose(decompose_path(length=2), decompose_neighborhood, do_decompose(decompose_cycles, compose_function=decompose_edge_join))
+    comp_and_struct_oracle_func = ego_oracle_setup(target_graph, df, None)
     
     target_size = len(target_graph)
 

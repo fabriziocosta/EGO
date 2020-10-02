@@ -20,6 +20,7 @@ class NeighborhoodGraphGrammar(object):
                  core=2,
                  context=1,
                  count=2,
+                 filter_max_num_substitutions=None,
                  n_neighbors=None,
                  perturbation_size=2,
                  part_importance_estimator=None,
@@ -30,6 +31,7 @@ class NeighborhoodGraphGrammar(object):
             thickness=context,
             filter_min_cip=count,
             filter_min_interface=2,
+            filter_max_num_substitutions=filter_max_num_substitutions,
             nodelevel_radius_and_thickness=False)
         self.perturbation_size = perturbation_size
         self.part_importance_estimator = part_importance_estimator
@@ -146,6 +148,7 @@ class NeighborhoodEgoGraphGrammar(object):
                  decomposition_function=None,
                  context=1,
                  count=1,
+                 filter_max_num_substitutions=None,
                  n_neighbors=None,
                  perturbation_size=0,
                  objective_func=None):
@@ -155,6 +158,7 @@ class NeighborhoodEgoGraphGrammar(object):
             thickness=context,
             filter_min_cip=count,
             filter_min_interface=2,
+            filter_max_num_substitutions=filter_max_num_substitutions,
             nodelevel_radius_and_thickness=False)
         self.perturbation_size = perturbation_size
         self.objective_func = objective_func
@@ -205,11 +209,16 @@ class NeighborhoodPartImportanceGraphGrammar(object):
                  decomposition_function=None,
                  context=1,
                  count=1,
+                 filter_max_num_substitutions=None,
                  n_neighbors=None,
+                 fit_at_each_iteration=False,
                  frac_nodes_to_select=.5,
-                 enforce_connected=True):
+                 enforce_connected=True,
+                 domain_graphs=[]):
+        self.domain_graphs = domain_graphs
         self.decomposition_function = decomposition_function
         self.n_neighbors = n_neighbors
+        self.fit_at_each_iteration = fit_at_each_iteration
         self.part_importance_estimator = PartImportanceEstimator(
             decompose_func=decomposition_function)
         self.graph_grammar = lsgg_ego(
@@ -217,12 +226,13 @@ class NeighborhoodPartImportanceGraphGrammar(object):
             thickness=context,
             filter_min_cip=count,
             filter_min_interface=2,
+            filter_max_num_substitutions=filter_max_num_substitutions,
             nodelevel_radius_and_thickness=False)
         self.frac_nodes_to_select = frac_nodes_to_select
         self.enforce_connected = enforce_connected
 
     def fit_grammar(self, graphs):
-        self.graph_grammar.fit(graphs)
+        self.graph_grammar.fit(graphs+self.domain_graphs)
         return self
 
     def fit_part_importance_estimator(self, graphs, targets):
@@ -230,6 +240,9 @@ class NeighborhoodPartImportanceGraphGrammar(object):
         return self
 
     def fit(self, graphs, targets):
+        if self.fit_at_each_iteration:
+            self.fit_grammar(graphs)
+            print('%30s:  %s' % ('Part Importance Graph Grammar', self))
         return self.fit_part_importance_estimator(graphs, targets)
 
     def __repr__(self):
@@ -239,6 +252,7 @@ class NeighborhoodPartImportanceGraphGrammar(object):
         res = self.part_importance_estimator.predict(graph)
         node_score_dict, edge_score_dict = res
         nodes = list(graph.nodes())
+        # select the nodes with lowest score
         selected_nodes = sorted(nodes, key=lambda u: node_score_dict[u])
         selected_nodes = selected_nodes[
             :int(len(selected_nodes) * self.frac_nodes_to_select)]
@@ -265,6 +279,7 @@ class NeighborhoodAdaptiveGraphGrammar(object):
                  approximate_decomposition_function=None,
                  context=1,
                  count=1,
+                 filter_max_num_substitutions=None,
                  n_neighbors=None,
                  ktop=4,
                  enforce_connected=True):
@@ -279,6 +294,7 @@ class NeighborhoodAdaptiveGraphGrammar(object):
             thickness=context,
             filter_min_cip=count,
             filter_min_interface=2,
+            filter_max_num_substitutions=filter_max_num_substitutions,
             nodelevel_radius_and_thickness=False)
         self.enforce_connected = enforce_connected
 
@@ -293,6 +309,7 @@ class NeighborhoodAdaptiveGraphGrammar(object):
         self.adaptive_decomposition_function = do_decompose(pos_dec, neg_dec, frag_dec)
         self.graph_grammar.set_decomposition(self.adaptive_decomposition_function)
         self.fit_grammar(graphs)
+        print('%30s:  %s' % ('Adaptive Graph Grammar', self))
         return self
 
     def fit_grammar(self, graphs):
