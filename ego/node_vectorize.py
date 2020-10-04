@@ -60,18 +60,20 @@ def get_proximity(graph, sigma=None, weight=None, type_of='shortest'):
     prox_mtx = np.exp(-dist_mtx/sigma)
     return prox_mtx
 
-def build_data_matrix(nodes_mtx, data_matrix, nbits):
+def build_data_matrix(nodes_mtx, data_matrix, nbits, max_num_node_features=1):
     feature_size, bitmask = set_feature_size(nbits=nbits)
     data, row, col = [], [], []
-    for t, (node_vec, row_vec) in enumerate(zip(nodes_mtx, data_matrix)):
-        for i in node_vec.indices:
-            for j,d in zip(row_vec.indices, row_vec.data):
-                new_feature_id = fast_hash_2(i,j, bitmask=bitmask)
-                row.append(t)
+    for node_id, (node_vec, row_vec) in enumerate(zip(nodes_mtx, data_matrix)):
+        for node_feature_id_combinations in combinations(node_vec.indices, max_num_node_features):
+            node_feature_id_combinations = list(node_feature_id_combinations)
+            for distant_feature_id, distant_feature_val in zip(row_vec.indices, row_vec.data):
+                node_feature_id_combinations.append(distant_feature_id)
+                new_feature_id = fast_hash(node_feature_id_combinations, bitmask=bitmask)
+                row.append(node_id)
                 col.append(new_feature_id)
-                data.append(d)
+                data.append(distant_feature_val)
     shape = (max(row) + 1, feature_size)
-    new_data_matrix = csr_matrix((data, (row, col)), shape=shape, dtype=np.float64)
+    new_data_matrix = csr_matrix((data, (row, col)), shape=shape, dtype=np.float64) 
     return new_data_matrix
 
 def node_attributes_vectorize(graph, attribute_label='attributes'):
@@ -96,17 +98,17 @@ def proximity_node_vectorize(graph_orig, decomposition_funcs, preprocessors=None
     else:
         return data_matrix
 
-def node_proximity_node_vectorize(graph_orig, decomposition_funcs, preprocessors=None, nbits=16, sigma=None, weight=None, type_of='shortest', attribute_label=None):
+def node_proximity_node_vectorize(graph_orig, decomposition_funcs, preprocessors=None, nbits=16, sigma=None, max_num_node_features=1, weight=None, type_of='shortest', attribute_label=None):
     nodes_mtx, data_matrix = proximity_node_vectorize(graph_orig, decomposition_funcs, preprocessors=preprocessors, nbits=nbits, sigma=sigma, weight=weight, type_of=type_of, attribute_label=attribute_label, return_node_mtx=True)
-    new_data_matrix = build_data_matrix(nodes_mtx, data_matrix, nbits)
+    new_data_matrix = build_data_matrix(nodes_mtx, data_matrix, nbits, max_num_node_features)
     return new_data_matrix
 
-def _graph_node_vectorize(graph, decomposition_funcs, preprocessors=None, nbits=16, sigma=None, weight=None, type_of='shortest'):
-    data_matrix = node_proximity_node_vectorize(graph, decomposition_funcs, preprocessors, nbits, sigma, weight, type_of)
+def _graph_node_vectorize(graph, decomposition_funcs, preprocessors=None, nbits=16, sigma=None, max_num_node_features=1, weight=None, type_of='shortest', attribute_label=None):
+    data_matrix = node_proximity_node_vectorize(graph, decomposition_funcs, preprocessors, nbits, sigma, max_num_node_features, weight, type_of, attribute_label)
     vec = csr_matrix(csr_matrix.sum(data_matrix, axis=0))
     return vec
 
-def graph_node_vectorize(graphs, decomposition_funcs, preprocessors=None, nbits=16, sigma=None, weight=None, type_of='shortest'):
-    data_list = [_graph_node_vectorize(graph, decomposition_funcs, preprocessors, nbits, sigma, weight, type_of) for graph in graphs]
+def graph_node_vectorize(graphs, decomposition_funcs, preprocessors=None, nbits=16, sigma=None, max_num_node_features=1, weight=None, type_of='shortest', attribute_label=None):
+    data_list = [_graph_node_vectorize(graph, decomposition_funcs, preprocessors, nbits, sigma, max_num_node_features, weight, type_of, attribute_label) for graph in graphs]
     data_matrix = sp.sparse.vstack(data_list)
     return data_matrix
