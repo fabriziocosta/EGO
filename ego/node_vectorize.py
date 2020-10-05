@@ -54,15 +54,15 @@ def get_distance(graph, weight=None, type_of='shortest'):
                 dist_mtx[i,j] = dist_func(graph, u, v, weight=weight)
     return dist_mtx
 
-def get_proximity(graph, sigma=None, weight=None, type_of='shortest', cutoff_sigma_factor=2):
-    if sigma == 0:
+def get_proximity(graph, effective_radius=1, weight=None, type_of='shortest', cutoff_effective_radius_factor=2):
+    if effective_radius == 0:
         n = nx.number_of_nodes(graph)
         return np.eye(n,n)
-    if sigma is None: 
-        sigma = nx.diameter(graph) / 4
+    if effective_radius is None: 
+        effective_radius = nx.diameter(graph) / 4
     dist_mtx = get_distance(graph, weight=weight, type_of=type_of)
-    prox_mtx = np.exp( - dist_mtx / sigma)
-    prox_mtx[dist_mtx >= cutoff_sigma_factor * sigma] = 0
+    prox_mtx = np.exp( - dist_mtx / effective_radius)
+    prox_mtx[dist_mtx >= cutoff_effective_radius_factor * effective_radius] = 0
     return prox_mtx
 
 def build_node_proximity_data_matrix(nodes_mtx, data_matrix, nbits, max_num_node_features=1):
@@ -86,9 +86,9 @@ def node_attributes_vectorize(graph, attribute_label='attributes'):
     vecs = csr_matrix(np.array(vec_list))
     return vecs
 
-def proximity_node_vectorize(graph_orig, decomposition_funcs, preprocessors=None, nbits=16, sigma=None, cutoff_sigma_factor=2, weight=None, type_of='shortest', attribute_label=None, return_node_mtx=False):
+def proximity_node_vectorize(graph_orig, decomposition_funcs, preprocessors=None, nbits=16, effective_radius=1, cutoff_effective_radius_factor=2, weight=None, type_of='shortest', attribute_label=None, return_node_mtx=False):
     graph = nx.convert_node_labels_to_integers(graph_orig)
-    prox_mtx = csr_matrix(get_proximity(graph, sigma=sigma, weight=weight, type_of=type_of, cutoff_sigma_factor=cutoff_sigma_factor))
+    prox_mtx = csr_matrix(get_proximity(graph, effective_radius=effective_radius, weight=weight, type_of=type_of, cutoff_effective_radius_factor=cutoff_effective_radius_factor))
     nodes_mtx = node_vectorize(graph, decomposition_funcs, preprocessors, nbits) 
     
     if attribute_label is not None:
@@ -103,17 +103,17 @@ def proximity_node_vectorize(graph_orig, decomposition_funcs, preprocessors=None
     else:
         return data_matrix
 
-def node_proximity_node_vectorize(graph_orig, decomposition_funcs, preprocessors=None, nbits=16, sigma=None, cutoff_sigma_factor=2, max_num_node_features=1, weight=None, type_of='shortest', attribute_label=None):
-    nodes_mtx, data_matrix = proximity_node_vectorize(graph_orig, decomposition_funcs, preprocessors=preprocessors, nbits=nbits, sigma=sigma, cutoff_sigma_factor=cutoff_sigma_factor, weight=weight, type_of=type_of, attribute_label=attribute_label, return_node_mtx=True)
+def node_proximity_node_vectorize(graph_orig, decomposition_funcs, preprocessors=None, nbits=16, effective_radius=1, cutoff_effective_radius_factor=2, max_num_node_features=1, weight=None, type_of='shortest', attribute_label=None):
+    nodes_mtx, data_matrix = proximity_node_vectorize(graph_orig, decomposition_funcs, preprocessors=preprocessors, nbits=nbits, effective_radius=effective_radius, cutoff_effective_radius_factor=cutoff_effective_radius_factor, weight=weight, type_of=type_of, attribute_label=attribute_label, return_node_mtx=True)
     node_proximity_data_matrix = build_node_proximity_data_matrix(nodes_mtx, data_matrix, nbits, max_num_node_features)
     return node_proximity_data_matrix
 
-def _graph_node_vectorize(graph, decomposition_funcs, preprocessors=None, nbits=16, sigma=None, cutoff_sigma_factor=2, max_num_node_features=1, weight=None, type_of='shortest', attribute_label=None):
-    data_matrix = node_proximity_node_vectorize(graph, decomposition_funcs, preprocessors, nbits, sigma, cutoff_sigma_factor, max_num_node_features, weight, type_of, attribute_label)
+def _graph_node_vectorize(graph, decomposition_funcs, preprocessors=None, nbits=16, effective_radius=1, cutoff_effective_radius_factor=2, max_num_node_features=1, weight=None, type_of='shortest', attribute_label=None):
+    data_matrix = node_proximity_node_vectorize(graph, decomposition_funcs, preprocessors, nbits, effective_radius, cutoff_effective_radius_factor, max_num_node_features, weight, type_of, attribute_label)
     vec = csr_matrix(csr_matrix.sum(data_matrix, axis=0))
     return vec
 
-def graph_node_vectorize(graphs, decomposition_funcs, preprocessors=None, nbits=16, sigma=None, cutoff_sigma_factor=2, max_num_node_features=1, weight=None, type_of='shortest', attribute_label=None):
-    data_list = [_graph_node_vectorize(graph, decomposition_funcs, preprocessors, nbits, sigma, cutoff_sigma_factor, max_num_node_features, weight, type_of, attribute_label) for graph in graphs]
+def graph_node_vectorize(graphs, decomposition_funcs, preprocessors=None, nbits=16, effective_radius=1, cutoff_effective_radius_factor=2, max_num_node_features=1, weight=None, type_of='shortest', attribute_label=None):
+    data_list = [_graph_node_vectorize(graph, decomposition_funcs, preprocessors, nbits, effective_radius, cutoff_effective_radius_factor, max_num_node_features, weight, type_of, attribute_label) for graph in graphs]
     data_matrix = sp.sparse.vstack(data_list)
     return data_matrix
