@@ -116,3 +116,7 @@ def decompose_pair(graph_component, distance=1):
         subgraphs=new_subgraphs_list,
         signatures=new_signatures_list)
     return gc
+
+
+def par(*args, **kargs): 
+    return decompose_pair(*args, **kargs)

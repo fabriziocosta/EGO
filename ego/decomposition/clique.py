@@ -111,3 +111,12 @@ def decompose_clique_and_non_clique(graph_component, size=None, min_size=2, max_
         subgraphs=new_subgraphs_list,
         signatures=new_signatures_list)
     return gc
+
+def clq(*args, **kargs): 
+    return decompose_clique(*args, **kargs)
+
+def nclq(*args, **kargs): 
+    return decompose_non_clique(*args, **kargs)
+
+def clqn(*args, **kargs): 
+    return decompose_clique_and_non_clique(*args, **kargs)

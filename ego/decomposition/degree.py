@@ -12,7 +12,7 @@ def degree_and_non_degree(graph, min_size=1, max_size=None):
     deg = dict(nx.degree(graph))
     if max_size is None:
         max_size = nx.number_of_nodes(graph)
-    nbunch = set([u for u in deg if max_size >= deg[u] >= min_size])
+    nbunch = set([u for u in deg if max_size >= deg[u] and  deg[u] >= min_size])
     g1 = nx.subgraph(graph, nbunch)
     deg_components = nx.connected_components(g1)
     complement_nbunch = set()
@@ -26,8 +26,7 @@ def degree_and_non_degree(graph, min_size=1, max_size=None):
 
 @curry
 def degree_decomposition(graph, min_size=1, max_size=None):
-    res = degree_and_non_degree(
-        graph, min_size=min_size, max_size=max_size)
+    res = degree_and_non_degree(graph, min_size=min_size, max_size=max_size)
     deg_components, non_deg_components = res
     return deg_components
 
@@ -112,3 +111,14 @@ def decompose_degree_and_non_degree(graph_component, min_size=2, max_size=None):
         subgraphs=new_subgraphs_list,
         signatures=new_signatures_list)
     return gc
+
+
+def dgr(*args, **kargs): 
+    return decompose_degree(*args, **kargs)
+
+def ndgr(*args, **kargs): 
+    return decompose_non_degree(*args, **kargs)
+
+def dgrn(*args, **kargs): 
+    return decompose_degree_and_non_degree(*args, **kargs)
+

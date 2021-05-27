@@ -62,3 +62,8 @@ def decompose_relation_binary(relation_graph_component, graph_component_first, g
         subgraphs=new_subgraphs_list,
         signatures=new_signatures_list)
     return gc
+
+
+
+def rltbnr(*args, **kargs): 
+    return decompose_relation_binary(*args, **kargs)

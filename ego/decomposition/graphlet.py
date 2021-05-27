@@ -34,3 +34,7 @@ def decompose_graphlet(graph_component, size=5):
         subgraphs=new_subgraphs_list,
         signatures=new_signatures_list)
     return gc
+
+
+def grp(*args, **kargs): 
+    return decompose_graphlet(*args, **kargs)

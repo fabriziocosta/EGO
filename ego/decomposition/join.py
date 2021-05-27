@@ -79,3 +79,9 @@ def decompose_edge_join(graph_component, min_size=1, max_size=1):
         subgraphs=new_subgraphs_list,
         signatures=new_signatures_list)
     return gc
+
+def ndjn(*args, **kargs): 
+    return decompose_node_join(*args, **kargs)
+
+def edgjn(*args, **kargs): 
+    return decompose_edge_join(*args, **kargs)

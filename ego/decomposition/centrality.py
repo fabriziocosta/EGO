@@ -102,3 +102,13 @@ def decompose_central_and_non_central(graph_component, k_top=2):
 
 # TODO: mark centrality of each node as the rank integer
 # rank from center or from periphery
+
+def cnt(*args, **kargs): 
+    return decompose_central(*args, **kargs)
+
+def ncnt(*args, **kargs): 
+    return decompose_non_central(*args, **kargs)
+
+def cntn(*args, **kargs): 
+    return decompose_central_and_non_central(*args, **kargs)
+    

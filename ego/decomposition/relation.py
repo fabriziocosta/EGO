@@ -48,3 +48,7 @@ def decompose_relation(relation_graph_component, graph_component, type_of='singl
         subgraphs=new_subgraphs_list,
         signatures=new_signatures_list)
     return gc
+
+
+def rlt(*args, **kargs): 
+    return decompose_relation(*args, **kargs)

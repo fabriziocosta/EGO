@@ -20,3 +20,6 @@ def decompose_connected_component(graph_component):
         edge_components=[],
         signature=serialize(['connected'], graph_component.signature))
     return gc
+
+def cnncmp(*args, **kargs): 
+    return decompose_connected_component(*args, **kargs)

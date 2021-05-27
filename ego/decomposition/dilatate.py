@@ -69,3 +69,7 @@ def decompose_dilatate(graph_component, radius=1):
         subgraphs=new_subgraphs_list,
         signatures=new_signatures_list)
     return gc
+
+
+def dlt(*args, **kargs): 
+    return decompose_dilatate(*args, **kargs)

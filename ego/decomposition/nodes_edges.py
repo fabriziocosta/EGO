@@ -81,3 +81,14 @@ def decompose_nodes_and_edges(graph_component):
         subgraphs=new_subgraphs_list,
         signatures=new_signatures_list)
     return gc
+
+
+def nds(*args, **kargs): 
+    return decompose_nodes(*args, **kargs)
+
+def edg(*args, **kargs): 
+    return decompose_edges(*args, **kargs)
+
+def ndsedg(*args, **kargs): 
+    return decompose_nodes_and_edges(*args, **kargs)
+    

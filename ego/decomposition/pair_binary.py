@@ -109,3 +109,8 @@ def decompose_pair_binary(graph_component_first, graph_component_second, distanc
         subgraphs=new_subgraphs_list,
         signatures=new_signatures_list)
     return gc
+
+
+def parbnr(*args, **kargs): 
+    return decompose_pair_binary(*args, **kargs)
+    

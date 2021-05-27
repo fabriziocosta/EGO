@@ -116,3 +116,12 @@ def decompose_positive_and_negative(graph_component, threshold=0, part_importanc
         subgraphs=new_subgraphs_list,
         signatures=new_signatures_list)
     return gc
+
+def pst(*args, **kargs): 
+    return decompose_positive(*args, **kargs)
+
+def ngt(*args, **kargs): 
+    return decompose_negative(*args, **kargs)
+
+def pstngt(*args, **kargs): 
+    return decompose_positive_and_negative(*args, **kargs)

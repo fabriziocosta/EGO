@@ -84,12 +84,9 @@ def decompose_context(graph_component, radius=1):
     new_subgraphs_list = []
     new_signatures_list = []
     for subgraph, signature in zip(graph_component.subgraphs, graph_component.signatures):
-        context_edges = context_component_decomposition(
-            graph_component.graph, subgraph, radius)
-        new_subgraphs = get_subgraphs_from_edge_components(
-            graph_component.graph, [context_edges])
-        new_signature = serialize(
-            ['context', radius], signature)
+        context_edges = context_component_decomposition(graph_component.graph, subgraph, radius)
+        new_subgraphs = get_subgraphs_from_edge_components(graph_component.graph, [context_edges])
+        new_signature = serialize(['context', radius], signature)
         new_signatures = [new_signature] * len(new_subgraphs)
         new_subgraphs_list += new_subgraphs
         new_signatures_list += new_signatures
@@ -99,3 +96,7 @@ def decompose_context(graph_component, radius=1):
         subgraphs=new_subgraphs_list,
         signatures=new_signatures_list)
     return gc
+
+
+def cntx(*args, **kargs): 
+    return decompose_context(*args, **kargs)

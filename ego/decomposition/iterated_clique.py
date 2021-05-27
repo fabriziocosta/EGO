@@ -80,3 +80,7 @@ def decompose_iterated_clique(
         signature=serialize(['iterated_clique', n_iter, min_n_iter, min_size, max_size],
                             graph_component.signature))
     return gc
+
+def itrclq(*args, **kargs): 
+    return decompose_iterated_clique(*args, **kargs)    
+    

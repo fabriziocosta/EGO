@@ -121,3 +121,14 @@ def decompose_discriminative_and_non_discriminative(graph_component, min_size=2,
                               threshold],
                              graph_component.signature)
     return gc
+
+def dsc(*args, **kargs): 
+    return decompose_discriminative(*args, **kargs)
+
+def ndsc(*args, **kargs): 
+    return decompose_non_discriminative(*args, **kargs)
+
+def dscn(*args, **kargs): 
+    return decompose_discriminative_and_non_discriminative(*args, **kargs)
+
+

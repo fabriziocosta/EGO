@@ -71,3 +71,10 @@ def decompose_edge_size(graph_component, min_size=1, max_size=None):
         subgraphs=new_subgraphs_list,
         signatures=new_signatures_list)
     return gc
+
+
+def ndsz(*args, **kargs): 
+    return decompose_node_size(*args, **kargs)
+
+def edgsz(*args, **kargs): 
+    return decompose_edge_size(*args, **kargs)

@@ -112,3 +112,15 @@ def decompose_intersection(graph_component_A, graph_component_B):
         subgraphs=new_subgraphs_list,
         signatures=new_signatures_list)
     return gc
+
+def dff(*args, **kargs): 
+    return decompose_difference(*args, **kargs)
+
+def symdff(*args, **kargs): 
+    return decompose_symmetric_difference(*args, **kargs)
+
+def unn(*args, **kargs): 
+    return decompose_union(*args, **kargs)
+
+def intr(*args, **kargs): 
+    return decompose_intersection(*args, **kargs)

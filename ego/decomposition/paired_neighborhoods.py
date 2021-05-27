@@ -79,3 +79,12 @@ def decompose_paired_neighborhoods(graph_component, radius=None, distance=None,
 def decompose_neighborhood(graph_component, radius=None, min_radius=0, max_radius=1):
     return decompose_paired_neighborhoods(
         graph_component, radius=radius, distance=None, min_radius=min_radius, max_radius=max_radius, min_distance=0, max_distance=0)
+
+
+def ngb(*args, **kargs): 
+    return decompose_neighborhood(*args, **kargs)
+
+
+def prdngb(*args, **kargs): 
+    return decompose_paired_neighborhoods(*args, **kargs)
+

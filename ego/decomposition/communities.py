@@ -22,3 +22,7 @@ def decompose_communities(graph_component):
         subgraphs=new_subgraphs_list,
         signatures=new_signatures_list)
     return gc
+
+def cmm(*args, **kargs): 
+    return decompose_clique(*args, **kargs)
+    

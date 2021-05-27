@@ -139,3 +139,13 @@ def decompose_cycles_and_non_cycles(graph_component):
         subgraphs=new_subgraphs_list,
         signatures=new_signatures_list)
     return gc
+
+def cyc(*args, **kargs): 
+    return decompose_cycles(*args, **kargs)
+
+def ncyc(*args, **kargs): 
+    return decompose_non_cycles(*args, **kargs)
+
+def cycn(*args, **kargs): 
+    return decompose_cycles_and_non_cycles(*args, **kargs)
+

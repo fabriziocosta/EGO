@@ -29,3 +29,8 @@ def decompose_all_union(graph_component):
         subgraphs=new_subgraphs,
         signatures=new_signatures)
     return gc
+
+
+def allunn(*args, **kargs): 
+    return decompose_all_union(*args, **kargs)
+

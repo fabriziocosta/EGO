@@ -50,3 +50,7 @@ def decompose_path(graph_component, length=None, min_len=1, max_len=None):
         subgraphs=new_subgraphs_list,
         signatures=new_signatures_list)
     return gc
+
+
+def pth(*args, **kargs): 
+    return decompose_path(*args, **kargs)
