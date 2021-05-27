@@ -128,3 +128,16 @@ def do_decompose(*decomposition_functions, **kargs):
         kargs.get('compose_function', decompose_identity),
         args(kargs.get('aggregate_function', decompose_concatenate),
              *decomposition_functions))
+
+
+def add(*decompositions):
+    return do_decompose(*decompositions)
+
+
+def com(*decompositions):
+    if len(decompositions) == 1:
+        return do_decompose(decompositions[0])
+    elif len(decompositions) == 2:
+        return do_decompose(decompositions[0], compose_function=decompositions[1])
+    else:
+        return do_decompose(*(decompositions[:-1]), aggregate_function=decompositions[-1])
