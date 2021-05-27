@@ -107,3 +107,10 @@ def decompose_abstract_and_non_abstract(graph_component, node_label=None, edge_l
         subgraphs=[graph],
         signatures=[new_signature])
     return gc
+
+
+def abst(*args, **kargs): 
+    return decompose_abstract(*args, **kargs)
+
+def abstn(*args, **kargs): 
+    return decompose_abstract_and_non_abstract(*args, **kargs)
