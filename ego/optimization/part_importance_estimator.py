@@ -26,14 +26,11 @@ class PartImportanceEstimator(object):
         feature_size, bitmask = set_feature_size(nbits=nbits)
         self.feature_size = feature_size
         self.bitmask = bitmask
-        encoding_func = make_encoder(
-            decompose_func, preprocessors=preprocessor, bitmask=self.bitmask, seed=1)
-        self.encoding_func = encoding_func
+        self.encoding_func = make_encoder(decompose_func, preprocessors=preprocessor, bitmask=self.bitmask, seed=1)
         self.estimator = None
 
     def feature_importance(self, graphs):
-        x = vectorize_graphs(graphs, encoding_func=self.encoding_func,
-                             feature_size=self.feature_size)
+        x = vectorize_graphs(graphs, encoding_func=self.encoding_func, feature_size=self.feature_size)
         prediction, biases, contributions = ti.predict(self.estimator, x)
         importances = np.mean(contributions, axis=0)
         intercept = biases[0]
@@ -62,13 +59,11 @@ class PartImportanceEstimator(object):
             n_nodes_in_fragment = float(nx.number_of_nodes(fragment))
             n_edges_in_fragment = float(nx.number_of_edges(fragment))
             for u in fragment.nodes():
-                node_scores[u] += (importance_dict[code] +
-                                   intercept / n_fragments) / n_nodes_in_fragment
+                node_scores[u] += (importance_dict[code] + intercept / n_fragments) / n_nodes_in_fragment
             for u, v in fragment.edges():
                 if u > v:
                     u, v = v, u
-                edge_scores[(u, v)] += (importance_dict[code] +
-                                        intercept / n_fragments) / n_edges_in_fragment
+                edge_scores[(u, v)] += (importance_dict[code] + intercept / n_fragments) / n_edges_in_fragment
         return node_scores, edge_scores
 
     def node_importance(self, graph):

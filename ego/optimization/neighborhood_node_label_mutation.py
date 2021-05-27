@@ -20,7 +20,7 @@ class NeighborhoodNodeLabelMutation(object):
         self.labels = labels
         self.probabilities = probabilities
 
-    def fit(self, graphs, targets):
+    def fit(self, graphs, targets=None):
         """fit."""
         labels = set([g.nodes[u]['label'] for g in graphs for u in g.nodes()])
         id2label_map = dict(enumerate(labels))

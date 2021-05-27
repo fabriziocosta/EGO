@@ -2,11 +2,7 @@
 """Provides scikit interface."""
 
 import numpy as np
-import scipy as sp
 import random
-
-from ego.optimization.part_importance_estimator import PartImportanceEstimator
-
 from ego.optimization.neighborhood_graph_grammar import NeighborhoodAdaptiveGraphGrammar
 from ego.optimization.neighborhood_graph_grammar import NeighborhoodPartImportanceGraphGrammar
 
@@ -27,15 +23,12 @@ from ego.optimization.neighborhood_node_smooth import NeighborhoodNodeSmooth
 
 from ego.optimization.neighborhood_edge_crossover import NeighborhoodEdgeCrossover
 from ego.optimization.neighborhood_cycle_crossover import NeighborhoodCycleCrossover
-from ego.optimization.neighborhood_double_edge_crossover import NeighborhoodDoubleEdgeCrossover
-from ego.optimization.neighborhood_break_crossover import NeighborhoodBreakCrossover
 
 from ego.optimization.score_estimator import GraphUpperConfidenceBoundEstimator
 from ego.optimization.score_estimator import GraphRandomForestScoreEstimator
 from ego.optimization.score_estimator import GraphLinearScoreEstimator
 from ego.optimization.score_estimator import GraphExpectedImprovementEstimator
 from ego.optimization.score_estimator import GraphNeuralNetworkScoreEstimator
-from ego.optimization.score_estimator import GraphNearestNeighborScoreEstimator
 from ego.optimization.score_estimator import EnsembleScoreEstimator
 
 from ego.optimization.feasibility_estimator import FeasibilityEstimator
@@ -90,26 +83,8 @@ def biased_sample(graphs, scores, sample_size):
     return sample_graphs, sample_scores
 
 
-def tournament_sample(graphs, scores, sample_size):
-    n = len(graphs)
-    ids = list(range(n))
-    random.shuffle(ids)
-    policy_selected_graphs = []
-    policy_selected_scores = []
-    for i in range(0, n - 1, 2):
-        if scores[ids[i]] > scores[ids[i + 1]]:
-            policy_selected_graphs.append(graphs[ids[i]])
-            policy_selected_scores.append(scores[ids[i]])
-        else:
-            policy_selected_graphs.append(graphs[ids[i + 1]])
-            policy_selected_scores.append(scores[ids[i + 1]])
-    policy_selected_graphs, policy_selected_scores = policy_selected_graphs[:sample_size], policy_selected_scores[:sample_size]
-    return policy_selected_graphs, policy_selected_scores
-
-
-def sample(graphs, scores, sample_size, greedy_frac=0.5, policy='tournament'):
+def sample(graphs, scores, sample_size, greedy_frac=0.5, policy='random'):
     """sample."""
-    assert len(graphs) > 0, 'Something went wrong: no graphs left to sample' 
     if sample_size > len(scores):
         sample_size = len(scores)
 
@@ -134,9 +109,11 @@ def sample(graphs, scores, sample_size, greedy_frac=0.5, policy='tournament'):
         unselected_scores = [scores[unselected_id]
                              for unselected_id in unselected_ids]
         size = sample_size - len(greedy_selected_graphs)
-        if policy == 'tournament':
-            policy_selected_graphs, policy_selected_scores = tournament_sample(
-                unselected_graphs, unselected_scores, size)
+        if policy == 'random':
+            ids = list(range(len(unselected_graphs)))
+            random.shuffle(ids)
+            policy_selected_graphs = [unselected_graphs[id] for id in ids[:size]]
+            policy_selected_scores = [unselected_scores[id] for id in ids[:size]]
         elif policy == 'biased':
             policy_selected_graphs, policy_selected_scores = biased_sample(
                 unselected_graphs, unselected_scores, size)
@@ -147,9 +124,8 @@ def sample(graphs, scores, sample_size, greedy_frac=0.5, policy='tournament'):
 
 
 @curry
-def _perturb(g, neighborhood_estimator=None, part_importance_estimator=None, feasibility_estimator=None):
+def _perturb(g, neighborhood_estimator=None, feasibility_estimator=None):
     neighbor_graphs = []
-    neighborhood_estimator.part_importance_estimator = part_importance_estimator
     neighbors = neighborhood_estimator.neighbors(g)
     if feasibility_estimator is None:
         feasibility_scores = [True] * len(neighbors)
@@ -164,10 +140,10 @@ def _perturb(g, neighborhood_estimator=None, part_importance_estimator=None, fea
     return neighbor_graphs
 
 
-def perturb(graphs, neighborhood_estimator, part_importance_estimator=None, feasibility_estimator=None, execute_concurrently=False):
+def perturb(graphs, neighborhood_estimator, feasibility_estimator=None, execute_concurrently=False):
     """perturb."""
     # generate a fixed num of neighbors for each graph in input
-    _perturb_ = _perturb(neighborhood_estimator=neighborhood_estimator, part_importance_estimator=part_importance_estimator, feasibility_estimator=feasibility_estimator)
+    _perturb_ = _perturb(neighborhood_estimator=neighborhood_estimator, feasibility_estimator=feasibility_estimator)
     if execute_concurrently:
         neighbors_list = simple_parallel_map(_perturb_, graphs)
     else:
@@ -178,35 +154,13 @@ def perturb(graphs, neighborhood_estimator, part_importance_estimator=None, feas
     return neighbor_graphs
 
 
-def mutate(proposed_graphs, graphs, part_importance_estimator=None, feasibility_estimator=None):
-    """mutate."""
-    mutated_proposed_graphs = []
-    mutated_proposed_graphs += perturb(
-        proposed_graphs,
-        NeighborhoodNodeLabelMutation(n_nodes=None).fit(graphs),
-        part_importance_estimator,
-        feasibility_estimator)
-    mutated_proposed_graphs += perturb(
-        proposed_graphs,
-        NeighborhoodEdgeLabelMutation(n_edges=None).fit(graphs),
-        part_importance_estimator,
-        feasibility_estimator)
-    mutated_proposed_graphs += perturb(
-        proposed_graphs,
-        NeighborhoodEdgeSwap(n_edges=None).fit(graphs),
-        part_importance_estimator,
-        feasibility_estimator)
-    return mutated_proposed_graphs
-
-
 def elitism(proposed_graphs, oracle_func, frac_instances_to_remove_per_iter):
     """elitism."""
     scores = [oracle_func(g) for g in proposed_graphs]
     ids = np.argsort(scores)
     n = int(frac_instances_to_remove_per_iter * len(scores))
-    ids = ids[n:]
-    surviving_graphs = [proposed_graphs[id] for id in ids]
-    surviving_scores = [scores[id] for id in ids]
+    surviving_graphs = [proposed_graphs[id] for id in ids[n:]]
+    surviving_scores = [scores[id] for id in ids[n:]]
     for graph, score in zip(surviving_graphs, surviving_scores):
         graph.graph['oracle_score'] = score
     return surviving_graphs, surviving_scores
@@ -214,43 +168,32 @@ def elitism(proposed_graphs, oracle_func, frac_instances_to_remove_per_iter):
 
 @curry
 def materialize_iterated_neighborhood(
-        id_estimator,
+        n_estimator,
         neighborhood_estimators=None,
         next_proposed_graphs=None,
         graphs=None,
-        part_importance_estimator=None,
         feasibility_estimator=None,
         score_estimator=None,
         step=None,
         n_steps_driven_by_estimator=None,
         sample_size_to_perturb=None,
         n_queries_to_oracle_per_iter=None,
-        parallelization_strategy=None,
-        greedy_frac=0.5):
+        parallelization_strategy=None):
     """materialize_iterated_neighborhood."""
     if parallelization_strategy == 'graph_wise':
         execute_concurrently = True
     else:
         execute_concurrently = False
-    neighborhood_estimator = neighborhood_estimators[id_estimator]
-    start_time = time.process_time()
+    neighborhood_estimator = neighborhood_estimators[n_estimator]
+    start_time = time.clock()
     all_neighbor_graphs = perturb(
         next_proposed_graphs,
         neighborhood_estimator,
-        part_importance_estimator,
         feasibility_estimator,
         execute_concurrently)
-    next_proposed_graphs, num_estimator_queries = [], 0
     neighbor_graphs = remove_duplicates(all_neighbor_graphs)
-    if len(neighbor_graphs) == 0:
-        logger.debug('Warning: removing duplicates among results resulted in no graphs')
-        return next_proposed_graphs, num_estimator_queries
     neighbor_graphs = remove_duplicates_in_set(neighbor_graphs, graphs)
-    if len(neighbor_graphs) == 0:
-        logger.debug('Warning: removing duplicates w.r.t. archived graphs resulted in no graphs')
-        return next_proposed_graphs, num_estimator_queries
-    predicted_scores = score_estimator.acquisition_score(neighbor_graphs)
-    num_estimator_queries = len(predicted_scores)
+    predicted_scores = score_estimator.predict(neighbor_graphs)
     # sample neighborhood according to surrogate score
     if step < n_steps_driven_by_estimator - 1:
         sample_size = int(sample_size_to_perturb / len(neighborhood_estimators))
@@ -261,24 +204,20 @@ def materialize_iterated_neighborhood(
         neighbor_graphs,
         predicted_scores,
         sample_size,
-        greedy_frac=greedy_frac)
-    if len(next_proposed_graphs) == 0:
-        logger.debug('Warning: sampling graphs resulted in no graphs')
-        return next_proposed_graphs, num_estimator_queries
-    
-    end_time = time.process_time()
+        greedy_frac=0.5)
+    end_time = time.clock()
     elapsed_time = (end_time - start_time) / 60.0
     if n_steps_driven_by_estimator == 1:
         step_str = ''
     else:
         step_str = '%d:' % (step + 1)
-    logger.info('%s%2d/%d) %30s:%4d novel graphs out of %4d generated  %3d selected graphs   best predicted score:%.3f   time:%.1f min' % (
-        step_str, id_estimator + 1, len(neighborhood_estimators),
+    logger.info('%s%2d/%d) %20s:%4d novel graphs out of %4d generated  %3d selected graphs   best predicted score:%.3f   time:%.1f min' % (
+        step_str, n_estimator + 1, len(neighborhood_estimators),
         type(neighborhood_estimator).__name__.replace('Neighborhood', ''),
         len(neighbor_graphs), len(all_neighbor_graphs),
         len(next_proposed_graphs), max(next_proposed_scores),
         elapsed_time))
-    return next_proposed_graphs, num_estimator_queries
+    return next_proposed_graphs
 
 
 def select_iterated_neighborhoods(
@@ -287,16 +226,13 @@ def select_iterated_neighborhoods(
         neighborhood_fitting_scores,
         graphs,
         neighborhood_estimators,
-        part_importance_estimator,
         feasibility_estimator,
         score_estimator,
         n_steps_driven_by_estimator,
         sample_size_to_perturb,
         n_queries_to_oracle_per_iter,
-        parallelization_strategy,
-        greedy_frac):
+        parallelization_strategy):
     """select_iterated_neighborhoods."""
-    all_n_estimator_queries = 0
     if parallelization_strategy == 'neighborhood_wise':
         execute_concurrently = True
     else:
@@ -309,7 +245,6 @@ def select_iterated_neighborhoods(
             neighborhood_estimators=neighborhood_estimators,
             next_proposed_graphs=proposed_graphs[:],
             graphs=graphs,
-            part_importance_estimator=part_importance_estimator,
             feasibility_estimator=feasibility_estimator,
             score_estimator=score_estimator,
             step=step,
@@ -320,33 +255,35 @@ def select_iterated_neighborhoods(
             list_of_graphs = simple_parallel_map(_materialize_iterated_neighborhood_, range(len(neighborhood_estimators)))
         else:
             list_of_graphs = [_materialize_iterated_neighborhood_(i) for i in range(len(neighborhood_estimators))]
-        for gs, n_estimator_queries in list_of_graphs:
+        for gs in list_of_graphs:
             all_proposed_graphs += gs
-            all_n_estimator_queries += n_estimator_queries
         # for n_estimator, neighborhood_estimator in enumerate(neighborhood_estimators):
         #    next_proposed_graphs = _materialize_iterated_neighborhood_(n_estimator)
         #    all_proposed_graphs += next_proposed_graphs
         proposed_graphs = remove_duplicates(all_proposed_graphs)
         proposed_graphs = remove_duplicates_in_set(proposed_graphs, graphs)
-        proposed_predicted_scores = score_estimator.acquisition_score(proposed_graphs)
+        predicted_scores = score_estimator.predict(proposed_graphs)
         if step < n_steps_driven_by_estimator - 1:
             sample_size = sample_size_to_perturb
         else:
             sample_size = n_queries_to_oracle_per_iter
-        proposed_graphs, proposed_predicted_scores = sample(
+        proposed_graphs, proposed_scores = sample(
             proposed_graphs,
-            proposed_predicted_scores,
+            predicted_scores,
             sample_size,
-            greedy_frac)
+            greedy_frac=0.5)
 
     if n_queries_to_oracle_per_iter < len(proposed_graphs):
         logger.info('sampling %d out of %d non redundant graphs out of %d graphs generated for oracle evaluation' % (
             n_queries_to_oracle_per_iter, len(proposed_graphs), len(all_proposed_graphs)))
-        proposed_graphs, proposed_predicted_scores = sample(
+        proposed_graphs, proposed_scores = sample(
             proposed_graphs,
-            proposed_predicted_scores,
+            predicted_scores,
             n_queries_to_oracle_per_iter,
-            greedy_frac)
+            greedy_frac=0.5)
+    else:
+        # keep all proposed graphs
+        proposed_scores = predicted_scores
     # at this point we have proposed_graphs, proposed_scores:
     # for each graph we have the 'parent' and the 'type' and the score
     # we can formulate a learning task where starting from the parent graph
@@ -359,200 +296,142 @@ def select_iterated_neighborhoods(
     # for types predicted to under perform
     # NOTE: code should allow empty neighbor_graphs
     # Note: allow for no prediction at all when all types need to be generated
-
-    return proposed_graphs, proposed_predicted_scores, all_n_estimator_queries
-
-
-def compute_prediction_correlation(predicted_scores, true_scores):
-    val, p = sp.stats.spearmanr(predicted_scores, true_scores)
-    if np.isnan(val):
-        val = 0
-    return val
+    return proposed_graphs, proposed_scores
 
 
 def optimize(graphs,
              oracle_func=None,
              n_iter=100,
+             budget_period_in_n_iter=4,
              n_queries_to_oracle_per_iter=100,
-             frac_instances_to_remove_per_iter=.1,
-             sample_size_to_perturb=8,
+             frac_instances_to_remove_per_iter=.5,
+             sample_size_to_perturb=25,
+             n_steps_driven_by_estimator=4,
+             increase_rate_of_steps_driven_by_estimator=1,
+             sample_size_for_grammars=None,
              neighborhood_estimators=None,
              score_estimator=None,
-             part_importance_estimator=None,
              feasibility_estimator=None,
              threshold_score_to_terminate=.99,
              monitor=None,
              draw_graphs=None,
-             parallelization_strategy='graph_wise',
-             greedy_sample_vs_tournament_frac=0.5,
-             patience=3,
-             n_steps_driven_by_estimator_base=3,
-             add_mutations_when_asking_oracle=True):
+             parallelization_strategy='graph_wise'):
     """optimize."""
-    assert oracle_func is not None, 'An oracle function must be made available'
-    n_steps_driven_by_estimator = n_steps_driven_by_estimator_base
+    assert oracle_func is not None, 'Oracle must be available'
+    original_sample_size_to_perturb = sample_size_to_perturb
     original_n_queries_to_oracle_per_iter = n_queries_to_oracle_per_iter
-    exploration_vs_exploitation = score_estimator.exploration_vs_exploitation
-    oracle_start_time = time.process_time()
+    original_n_steps_driven_by_estimator = n_steps_driven_by_estimator
+    current_n_steps_driven_by_estimator = 0
+    oracle_start_time = time.clock()
     true_scores = [oracle_func(graph)
                    if graph.graph.get('oracle_score', None) is None
                    else graph.graph['oracle_score']
                    for graph in graphs]
-    for graph, score in zip(graphs, true_scores):
-        graph.graph['oracle_score'] = score
-    oracle_end_time = time.process_time()
+    oracle_end_time = time.clock()
     oracle_elapsed_time = (oracle_end_time - oracle_start_time) / 60.0
     logger.info('Oracle evaluated on %d graphs in %.1f min' % (len(graphs), oracle_elapsed_time))
 
+    for graph, score in zip(graphs, true_scores):
+        graph.graph['oracle_score'] = score
+
     proposed_graphs = []
-    proposed_true_scores = []
-    proposed_predicted_scores = []
-    corr_true_vs_pred_scores_history = []
-    max_score_history = []
-    corr_true_vs_pred_scores_delta = 0
-    corr_true_vs_pred_scores = 0
-    max_score_delta = 0
-    curr_patience = patience
+    proposed_scores = []
     for i in range(n_iter):
-        logger.info('\n\n- iteration: %d/%d' % (i + 1, n_iter))
+        # budget preparation
+        budget_indicator = i % budget_period_in_n_iter + 1
+        inverse_budget_indicator = budget_period_in_n_iter - i % budget_period_in_n_iter
+        budget_fraction = budget_indicator / float(budget_period_in_n_iter)
+        inverse_budget_fraction = inverse_budget_indicator / float(budget_period_in_n_iter)
+        n_queries_to_oracle_per_iter = max(1, int(original_n_queries_to_oracle_per_iter * inverse_budget_fraction))
+        sample_size_to_perturb = max(1, int(original_sample_size_to_perturb * inverse_budget_fraction))
+        current_n_steps_driven_by_estimator = i * increase_rate_of_steps_driven_by_estimator
+        n_steps_driven_by_estimator = max(1, int((original_n_steps_driven_by_estimator + current_n_steps_driven_by_estimator) * budget_fraction))
+        logger.info('\n\n- iteration: %d' % (i + 1))
+        logger.info('budget_indicator:%d   budget_fraction:%.2f   inverse_budget_indicator:%d   inverse_budget_fraction:%.2f   \nn_queries_to_oracle_per_iter:%d   sample_size_to_perturb:%d   n_steps_driven_by_estimator:%d' %
+                    (budget_indicator, budget_fraction, inverse_budget_indicator, inverse_budget_fraction, n_queries_to_oracle_per_iter, sample_size_to_perturb, n_steps_driven_by_estimator))
 
         # update with oracle
         num_proposed_graphs = len(proposed_graphs)
         if num_proposed_graphs:
-            oracle_start_time = time.process_time()
-            proposed_graphs, proposed_true_scores = elitism(
+            oracle_start_time = time.clock()
+            predicted_scores = proposed_scores
+            proposed_graphs, proposed_scores = elitism(
                 proposed_graphs, oracle_func, frac_instances_to_remove_per_iter)
             graphs += proposed_graphs[:]
-            true_scores += proposed_true_scores[:]
-            weights, errors = score_estimator.estimate_weights(proposed_graphs, proposed_true_scores)
-            estimator_names = [type(estimator).__name__.replace('Graph', '').replace('Score', '').replace('Estimator', '') for estimator in score_estimator.estimators]
-            for es, er, we in zip(estimator_names, errors, weights):
-                print('est: %30s:   err: %.1e   w:%.3f' % (es, er, we))
-            selected_proposed_predicted_scores = score_estimator.predict(proposed_graphs)
-            if len(proposed_true_scores) == len(selected_proposed_predicted_scores):
-                corr_true_vs_pred_scores = compute_prediction_correlation(proposed_true_scores, selected_proposed_predicted_scores)
+            true_scores += proposed_scores[:]
+            if len(predicted_scores) == len(proposed_scores):
+                corr_true_vs_pred_scores = np.corrcoef(predicted_scores, proposed_scores)[0, 1]
             else:
-                # start case
                 corr_true_vs_pred_scores = 0
-            corr_true_vs_pred_scores_history.append(corr_true_vs_pred_scores)
-            if len(corr_true_vs_pred_scores_history) > 1:
-                corr_true_vs_pred_scores_delta = (corr_true_vs_pred_scores_history[-1] - corr_true_vs_pred_scores_history[-2])
-            else:
-                corr_true_vs_pred_scores_delta = 0
-            oracle_end_time = time.process_time()
+            oracle_end_time = time.clock()
             oracle_elapsed_time = (oracle_end_time - oracle_start_time) / 60.0
             logger.info('Oracle evaluated on %d graphs in %.1f min' % (num_proposed_graphs, oracle_elapsed_time))
-            logger.info('Correlation between %d predicted and true scores: %.3f (increased of %.3f from previous iteration)' %
-                        (len(proposed_true_scores), corr_true_vs_pred_scores, corr_true_vs_pred_scores_delta))
-        # policy for n_steps_driven_by_estimator
-        if corr_true_vs_pred_scores_delta > 0:
-            n_steps_driven_by_estimator_factor = 1
-        else:
-            n_steps_driven_by_estimator_factor = -1
-        n_steps_driven_by_estimator += n_steps_driven_by_estimator_factor
-        n_steps_driven_by_estimator = int(n_steps_driven_by_estimator)
-        if corr_true_vs_pred_scores < 0.5:
-            n_steps_driven_by_estimator = n_steps_driven_by_estimator_base
-        n_steps_driven_by_estimator = max(n_steps_driven_by_estimator_base, n_steps_driven_by_estimator)
-        n_steps_driven_by_estimator = min(10, n_steps_driven_by_estimator)
-        logger.info('n_steps_driven_by_estimator: %d' % (n_steps_driven_by_estimator))
-        # termination condition
-        if proposed_true_scores:
-            max_iteration_score = max(proposed_true_scores)
+            logger.info('Correlation between predicted and true scores: %.3f' % (corr_true_vs_pred_scores))
+
+        # evaluation of termination condition and current status output
+        if proposed_scores:
+            max_iteration_score = max(proposed_scores)
         else:
             max_iteration_score = 0
         max_score = max(true_scores)
-        max_score_history.append(max_score)
         if max_score >= threshold_score_to_terminate:
             logger.info('Termination! score:%.3f is above user defined threshold:%.3f' % (max_score, threshold_score_to_terminate))
             break
         else:
-            logger.info('Max score in last iteration: %.3f    Global max score: %.3f' % (max_iteration_score, max_score))
+            logger.info('Max score in last iteration: %.3f' % (max_iteration_score))
+            logger.info('Max score globally: %.3f' % (max_score))
             if draw_graphs is not None:
                 if proposed_graphs:
                     logger.info('Current iteration')
                     draw_graphs(proposed_graphs)
                 logger.info('Current status')
                 draw_graphs(graphs)
-        # policy for n_queries_to_oracle_per_iter and exploration_vs_exploitation
-        if len(max_score_history) > 1:
-            max_score_delta = max_score_history[-1] - max_score_history[-2]
-            if max_score_delta <= 0 and curr_patience > 0:
-                curr_patience -= 1
-                logger.info('Lack of improvement detected  [patience:%d]'%curr_patience)
-            elif max_score_delta <= 0 and curr_patience <= 0:
-                curr_patience = patience
-                logger.info('Lack of improvement detected  [patience:%d]  INCREASING exploration_vs_exploitation_factor AND INCREASING n_queries_to_oracle_per_iter'%curr_patience)
-                n_queries_to_oracle_per_iter_increment_factor = 1.2
-                exploration_vs_exploitation_factor = 10
-            else:
-                curr_patience = patience
-                n_queries_to_oracle_per_iter_increment_factor = 0.08
-                exploration_vs_exploitation_factor = 0.1
-        else:
-            max_score_delta = 0
-            n_queries_to_oracle_per_iter_increment_factor = 1
-            exploration_vs_exploitation_factor = 1
-        exploration_vs_exploitation *= exploration_vs_exploitation_factor
-        exploration_vs_exploitation = min(1, exploration_vs_exploitation)
-        exploration_vs_exploitation = max(1e-4, exploration_vs_exploitation)
-        score_estimator.set_exploration_vs_exploitation(exploration_vs_exploitation)
-        logger.info('exploration_vs_exploitation:%.2e' % exploration_vs_exploitation)
-        n_queries_to_oracle_per_iter *= n_queries_to_oracle_per_iter_increment_factor
-        n_queries_to_oracle_per_iter = int(n_queries_to_oracle_per_iter)
-        n_queries_to_oracle_per_iter = max(original_n_queries_to_oracle_per_iter, n_queries_to_oracle_per_iter)
-        n_queries_to_oracle_per_iter = min(original_n_queries_to_oracle_per_iter * 20, n_queries_to_oracle_per_iter)
-        logger.info('n_queries_to_oracle_per_iter:%d' % n_queries_to_oracle_per_iter)
 
         # update score_estimator
-        score_estimator_start_time = time.process_time()
+        score_estimator_start_time = time.clock()
         score_estimator.fit(graphs, true_scores)
-        score_estimator_end_time = time.process_time()
+        score_estimator_end_time = time.clock()
         score_estimator_elapsed_time = (score_estimator_end_time - score_estimator_start_time) / 60.0
         logger.info('Score estimator fitted on %d graphs in %.1f min' % (len(graphs), score_estimator_elapsed_time))
 
-        # update part_importance_estimator
-        part_importance_estimator_start_time = time.process_time()
-        part_importance_estimator.fit(graphs, true_scores)
-        part_importance_estimator_end_time = time.process_time()
-        part_importance_estimator_elapsed_time = (part_importance_estimator_end_time - part_importance_estimator_start_time) / 60.0
-        logger.info('Part importance  estimator fitted on %d graphs in %.1f min' % (len(graphs), part_importance_estimator_elapsed_time))
+        # update neighborhood_estimators
+        if sample_size_for_grammars is None:
+            neighborhood_fitting_graphs, neighborhood_fitting_scores = graphs, true_scores
+        else:
+            neighborhood_fitting_graphs, neighborhood_fitting_scores = sample(
+                graphs,
+                true_scores,
+                sample_size_for_grammars,
+                greedy_frac=0.5)
 
         # select small number (sample_size_to_perturb) of promising graphs for neighborhood expansion
-        proposed_graphs, proposed_true_scores = sample(
+        proposed_graphs, proposed_scores = sample(
             graphs,
             true_scores,
             sample_size_to_perturb,
-            greedy_sample_vs_tournament_frac)
+            greedy_frac=0.5)
 
         # materialize neighborhood and select best candidates using score estimator
-        iter_start_time = time.process_time()
+        iter_start_time = time.clock()
         logger.info('From a biased draw of %d samples from %d graphs...' % (sample_size_to_perturb, len(graphs)))
-        proposed_graphs, proposed_predicted_scores, all_n_estimator_queries = select_iterated_neighborhoods(
+        proposed_graphs, proposed_scores = select_iterated_neighborhoods(
             proposed_graphs,
-            graphs,
-            true_scores,
+            neighborhood_fitting_graphs,
+            neighborhood_fitting_scores,
             graphs,
             neighborhood_estimators,
-            part_importance_estimator,
             feasibility_estimator,
             score_estimator,
             n_steps_driven_by_estimator,
             sample_size_to_perturb,
             n_queries_to_oracle_per_iter,
-            parallelization_strategy,
-            greedy_sample_vs_tournament_frac)
-        
-        if add_mutations_when_asking_oracle is True:
-            mutated_proposed_graphs = mutate(proposed_graphs, graphs, part_importance_estimator, feasibility_estimator)
-            logger.info('Added %d mutations to original %d proposed graphs'%(len(mutated_proposed_graphs),len(proposed_graphs)))
-            proposed_graphs += mutated_proposed_graphs
+            parallelization_strategy)
 
         if monitor:
-            monitor(i, proposed_graphs, graphs, score_estimator, all_n_estimator_queries, part_importance_estimator=part_importance_estimator)
+            monitor(i, proposed_graphs, graphs, score_estimator)
         if len(proposed_graphs) == 0:
             break
-        iter_end_time = time.process_time()
+        iter_end_time = time.clock()
         iter_elapsed_time_m = (iter_end_time - iter_start_time) / 60.0
         iter_elapsed_time_h = iter_elapsed_time_m / 60.0
         logger.info('overall iteration time: %.1f min (%.1f h)' % (iter_elapsed_time_m, iter_elapsed_time_h))
@@ -560,14 +439,14 @@ def optimize(graphs,
     # final update with oracle
     num_proposed_graphs = len(proposed_graphs)
     if num_proposed_graphs:
-        oracle_start_time = time.process_time()
-        proposed_graphs, proposed_true_scores = elitism(
+        oracle_start_time = time.clock()
+        proposed_graphs, proposed_scores = elitism(
             proposed_graphs, oracle_func, frac_instances_to_remove_per_iter)
-        max_iteration_score = max(proposed_true_scores)
+        max_iteration_score = max(proposed_scores)
         graphs += proposed_graphs[:]
-        true_scores += proposed_true_scores[:]
+        true_scores += proposed_scores[:]
         max_score = max(true_scores)
-        oracle_end_time = time.process_time()
+        oracle_end_time = time.clock()
         oracle_elapsed_time = (oracle_end_time - oracle_start_time) / 60.0
         logger.info('Oracle evaluated on %d graphs in %.1f min' % (num_proposed_graphs, oracle_elapsed_time))
         logger.info('Max score in last iteration: %.3f' % (max_iteration_score))
@@ -581,25 +460,20 @@ def optimize(graphs,
     return graphs
 
 
-def optimizer_setup(use_RandomForest_estimator=False,
+def optimizer_setup(use_RandomForest_estimator=True,
                     use_Linear_estimator=False,
                     use_EI_estimator=False,
                     use_UCB_estimator=False,
-                    use_KNN_stimator=False,
-                    use_ANN_estimator=False,
-                    ANN_estimator_hidden_layer_sizes=[100, 50],
-                    n_estimators_ANN=10,
-                    n_neighbors_KNN=5,
+                    use_NN_estimator=False,
+                    NN_estimator_hidden_layer_sizes=[100, 50],
+                    n_estimators_NN=7,
                     n_estimators=100,
                     exploration_vs_exploitation=0,
                     decomposition_score_estimator=None,
-                    execute_estimator_concurrently=False,
 
-                    use_feasibility_estimator=False,
+                    use_feasibility_estimator=True,
                     decomposition_feasibility_estimator=None,
                     domain_graphs_feasibility_estimator=None,
-
-                    decomposition_part_importance_estimator=None,
 
                     use_part_importance_graph_grammar=False,
                     n_neighbors_part_importance_graph_grammar=None,
@@ -621,31 +495,12 @@ def optimizer_setup(use_RandomForest_estimator=False,
 
 
                     use_edge_crossover=False,
-                    n_neighbors_edge_crossover=10,
-                    n_edge_edge_crossover=1,
-                    tournament_size_factor_edge_crossover=10,
-                    size_n_std_to_accept_edge_crossover=2,
-
-                    use_break_crossover=False,
-                    n_neighbors_break_crossover=1,
-                    n_edge_break_crossover=1,
-                    min_size_break_crossover=5,
-                    max_size_break_crossover=.5,
-                    tournament_size_factor_break_crossover=3,
-                    size_n_std_to_accept_break_crossover=1,
+                    n_neighbors_edge_crossover=10, n_edge_edge_crossover=1,
 
                     use_cycle_crossover=False,
                     n_neighbors_cycle_crossover=10,
                     n_cycle_cycle_crossover=1,
                     n_edges_per_cycle_cycle_crossover=1,
-                    tournament_size_factor_cycle_crossover=10,
-                    size_n_std_to_accept_cycle_crossover=2,
-
-                    use_double_edge_crossover=False,
-                    n_neighbors_double_edge_crossover=10,
-                    n_double_edges_double_edge_crossover=10,
-                    tournament_size_factor_double_edge_crossover=10,
-                    size_n_std_to_accept_double_edge_crossover=2,
 
                     use_edge_swapping=False,
                     n_neighbors_edge_swapping=None, n_edge_swapping=1,
@@ -689,45 +544,20 @@ def optimizer_setup(use_RandomForest_estimator=False,
                     use_node_smooth=False,
                     n_neighbors_node_smooth=None, n_node_smooth=1):
     """optimizer_setup."""
-    part_importance_estimator = PartImportanceEstimator(
-        decompose_func=decomposition_part_importance_estimator)
-
     neighborhood_estimators = []
 
     if use_edge_crossover:
         nec = NeighborhoodEdgeCrossover(
             n_edges=n_edge_edge_crossover,
-            n_neighbors=n_neighbors_edge_crossover,
-            tournament_size_factor=tournament_size_factor_edge_crossover,
-            size_n_std_to_accept=size_n_std_to_accept_edge_crossover)
+            n_neighbors=n_neighbors_edge_crossover)
         neighborhood_estimators.append(nec)
-
-    if use_break_crossover:
-        nbc = NeighborhoodBreakCrossover(
-            n_edges=n_edge_break_crossover,
-            min_size = min_size_break_crossover,
-            max_size = max_size_break_crossover,
-            n_neighbors=n_neighbors_break_crossover,
-            tournament_size_factor=tournament_size_factor_break_crossover,
-            size_n_std_to_accept=size_n_std_to_accept_break_crossover)
-        neighborhood_estimators.append(nbc)
 
     if use_cycle_crossover:
         ncc = NeighborhoodCycleCrossover(
             n_cycles=n_cycle_cycle_crossover,
             n_edges_per_cycle=n_edges_per_cycle_cycle_crossover,
-            n_neighbors=n_neighbors_cycle_crossover,
-            tournament_size_factor=tournament_size_factor_cycle_crossover,
-            size_n_std_to_accept=size_n_std_to_accept_cycle_crossover)
+            n_neighbors=n_neighbors_cycle_crossover)
         neighborhood_estimators.append(ncc)
-
-    if use_double_edge_crossover:
-        ndec = NeighborhoodDoubleEdgeCrossover(
-            n_double_edges=n_double_edges_double_edge_crossover,
-            n_neighbors=n_neighbors_double_edge_crossover,
-            tournament_size_factor=tournament_size_factor_double_edge_crossover,
-            size_n_std_to_accept=size_n_std_to_accept_double_edge_crossover)
-        neighborhood_estimators.append(ndec)
 
     if use_edge_swapping:
         nes = NeighborhoodEdgeSwap(
@@ -851,24 +681,14 @@ def optimizer_setup(use_RandomForest_estimator=False,
             exploration_vs_exploitation=exploration_vs_exploitation)
         score_estimators.append(score_estimator)
 
-    if use_ANN_estimator:
+    if use_NN_estimator:
         score_estimator = GraphNeuralNetworkScoreEstimator(
-            hidden_layer_sizes=ANN_estimator_hidden_layer_sizes,
+            hidden_layer_sizes=NN_estimator_hidden_layer_sizes,
             decomposition_funcs=decomposition_score_estimator,
-            n_estimators=n_estimators_ANN,
+            n_estimators=n_estimators_NN,
             exploration_vs_exploitation=exploration_vs_exploitation)
         score_estimators.append(score_estimator)
-
-    if use_KNN_stimator:
-        score_estimator = GraphNearestNeighborScoreEstimator(
-            n_neighbors=n_neighbors_KNN,
-            decomposition_funcs=decomposition_score_estimator,
-            n_estimators=n_estimators,
-            exploration_vs_exploitation=exploration_vs_exploitation)
-        score_estimators.append(score_estimator)
-
-    score_estimator = EnsembleScoreEstimator(score_estimators, execute_concurrently=execute_estimator_concurrently)
-    score_estimator.set_exploration_vs_exploitation(exploration_vs_exploitation)
+    score_estimator = EnsembleScoreEstimator(score_estimators)
 
     if use_feasibility_estimator:
         feasibility_estimator = FeasibilityEstimator(
@@ -877,4 +697,4 @@ def optimizer_setup(use_RandomForest_estimator=False,
         feasibility_estimator.fit(domain_graphs_feasibility_estimator)
     else:
         feasibility_estimator = None
-    return neighborhood_estimators, score_estimator, part_importance_estimator, feasibility_estimator
+    return neighborhood_estimators, score_estimator, feasibility_estimator

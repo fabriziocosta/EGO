@@ -13,7 +13,7 @@ class NeighborhoodNodeLabelSwap(object):
         self.n_neighbors = n_neighbors
         self.n_nodes = n_nodes
 
-    def fit(self, graphs, targets):
+    def fit(self, graphs, targets=None):
         """fit."""
         return self
 

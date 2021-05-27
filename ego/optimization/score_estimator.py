@@ -10,6 +10,7 @@ from sklearn.neural_network import MLPRegressor
 from sklearn.linear_model import SGDRegressor
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.model_selection import RepeatedKFold
+from sklearn.decomposition import TruncatedSVD
 from scipy.stats import norm as normal_distribution
 from scipy.stats import rankdata
 import numpy as np
@@ -27,9 +28,9 @@ def inv_sigmoid(x, sigma=1e-2):
 
 
 @curry
-def ensemble_score_estimator_fit(id, estimators=None, graphs=None, targets=None):
+def ensemble_score_estimator_fit(id, estimators=None, graphs=None, targets=None, unlabeled_graphs=None):
     """ensemble_score_estimator_fit."""
-    out = estimators[id].fit(graphs, targets)
+    out = estimators[id].fit(graphs, targets, unlabeled_graphs)
     return (id, out)
 
 
@@ -56,13 +57,12 @@ class EnsembleScoreEstimator(object):
         for estimator in self.estimators:
             estimator.exploration_vs_exploitation = exploration_vs_exploitation
 
-    def fit(self, graphs, targets):
+    def fit(self, graphs, targets, unlabeled_graphs=None):
         """fit."""
         if self.execute_concurrently is False:
-            for estimator in self.estimators:
-                estimator.fit(graphs, targets)
+            self.estimators = [estimator.fit(graphs, targets) for estimator in self.estimators]
         else:
-            _ensemble_score_estimator_fit_ = ensemble_score_estimator_fit(estimators=self.estimators[:], graphs=graphs[:], targets=targets[:])
+            _ensemble_score_estimator_fit_ = ensemble_score_estimator_fit(estimators=self.estimators[:], graphs=graphs[:], targets=targets[:], unlabeled_graphs=unlabeled_graphs[:])
             results = simple_parallel_map(_ensemble_score_estimator_fit_, range(len(self.estimators)))
             self.estimators = [estimator for id, estimator in sorted(results, key=lambda x: x[0])]
             print('e--%s' % (self.estimators))
@@ -137,7 +137,7 @@ class ScoreEstimatorInterface(object):
         self.seed = seed
         self.exploration_vs_exploitation = exploration_vs_exploitation
 
-    def fit(self, graphs, targets):
+    def fit(self, graphs, targets, unlabeled_graphs=None):
         """fit."""
         return self
 
@@ -175,7 +175,7 @@ class ScoreEstimatorInterface(object):
 class ScoreEstimator(ScoreEstimatorInterface):
     """ScoreEstimator."""
 
-    def __init__(self, decomposition_funcs=None, preprocessors=None, nbits=14, seed=1, exploration_vs_exploitation=0):
+    def __init__(self, decomposition_funcs=None, preprocessors=None, nbits=14, seed=1, exploration_vs_exploitation=0, n_components=5):
         """init."""
         self.decomposition_funcs = decomposition_funcs
         self.preprocessors = preprocessors
@@ -183,17 +183,24 @@ class ScoreEstimator(ScoreEstimatorInterface):
         self.seed = seed
         self.exploration_vs_exploitation = exploration_vs_exploitation
         self.estimators = []
+        #self.embedder = TruncatedSVD(n_components=n_components)
 
-    def transform(self, graphs):
-        """transform."""
+    def _transform(self, graphs):
         data_mtx = vectorize(graphs, self.decomposition_funcs,
                              self.preprocessors, self.nbits, self.seed)
         return data_mtx
 
-    def fit(self, graphs, targets):
+    def transform(self, graphs):
+        """transform."""
+        data_mtx = self._transform(graphs)
+        #data_mtx = self.embedder.transform(graphs)
+        return data_mtx
+        
+    def fit(self, graphs, targets, unlabeled_graphs=None):
         """fit."""
         y = np.array(targets)
         data_mtx = self.transform(graphs)
+        #data_mtx = self.embedder.fit_transform(data_mtx)
         size = data_mtx.shape[0]
         n_estimators = len(self.estimators)
         n_splits = 5
@@ -546,8 +553,7 @@ class GraphNeuralNetworkScoreEstimator(ScoreEstimator):
         self.preprocessors = preprocessors
         self.nbits = nbits
         self.seed = seed
-        self.estimators = [MLPRegressor(hidden_layer_sizes=hidden_layer_sizes, alpha=alpha)
-                           for _ in range(n_estimators)]
+        self.estimators = [MLPRegressor(hidden_layer_sizes=hidden_layer_sizes, alpha=alpha) for _ in range(n_estimators)]
 
     def predict_gradient(self, graphs):
         """predict_gradient."""
